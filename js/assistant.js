@@ -3,8 +3,10 @@
 import { state, local, update, uid } from './store.js';
 import { esc } from './text.js';
 import { icon } from './icons.js';
-import { todayISO, addDays, fmt, diffDays, toISO, timeAgo } from './dates.js';
-import { getProject, openTasks, inactiveProjects } from './actions.js';
+import { todayISO, addDays, fmt, diffDays, toISO, timeAgo, dueLabel, weekday } from './dates.js';
+import { getProject, getTask, getEvent, openTasks, inactiveProjects, createTask, saveEvent, deleteTask, deleteEvent, suggestProject } from './actions.js';
+import { firstDue } from './recurrence.js';
+import { parseAssistantReply, normalizeActions } from './ai-parse.js';
 import { recurrenceLabel } from './recurrence.js';
 import { toast } from './toast.js';
 import { allMails } from './mail.js';
@@ -92,7 +94,58 @@ Réponds en français, de façon brève, concrète et bienveillante. Utilise des
 Base-toi UNIQUEMENT sur les données ci-dessous. Si une information n'y figure pas, dis-le simplement, sans inventer.
 N'utilise pas de tiret long.
 
+TU PEUX AUSSI AGIR : ajouter des tâches et des événements quand l'utilisateur te le demande explicitement (« ajoute », « note », « programme », « rappelle-moi »…).
+Réponds TOUJOURS avec un objet JSON valide, sans texte autour :
+{"reply":"ta réponse en texte (peut contenir **gras** et des listes)","actions":[...]}
+Actions possibles (laisse "actions" vide si on ne te demande pas d'ajouter quelque chose) :
+- {"type":"add_task","title":"…","due":"AAAA-MM-JJ ou null","time":"HH:MM ou null","priority":0 à 3,"project":"nom exact d'un projet existant ou null","recurrence":null ou {"freq":"daily"} ou {"freq":"weekly","days":[numéros des jours, 0 = dimanche, 1 = lundi…]}}
+- {"type":"add_event","title":"…","date":"AAAA-MM-JJ","start":"HH:MM ou null","end":"HH:MM ou null","location":"… ou vide"}
+Règles :
+- Une tâche est une chose à faire ; un événement a lieu à une date précise (réunion, rendez-vous, examen, soirée…).
+- Calcule les dates relatives (demain, jeudi, la semaine prochaine…) avec le calendrier ci-dessous. N'invente jamais de date.
+- S'il manque la date d'un événement, ne crée rien et demande-la dans "reply".
+- Dans "reply", confirme en une phrase ce que tu as ajouté, avec la date.
+
+CALENDRIER DES 14 PROCHAINS JOURS :
+${Array.from({ length: 14 }, (_, i) => addDays(todayISO(), i)).map((d) => `${fmt(d, { weekday: 'long', day: 'numeric', month: 'long' })} = ${d}`).join('\n')}
+
 ${buildContext()}`;
+}
+
+// Exécute les ajouts demandés et renvoie de quoi afficher une carte (avec annulation) dans la conversation.
+function applyActions(actions) {
+  const done = [];
+  const today = todayISO();
+  for (const a of actions) {
+    if (a.type === 'task') {
+      let { due, recurrence } = a;
+      if (recurrence?.freq === 'weekly' && !recurrence.days.length) recurrence = { ...recurrence, days: [weekday(due || today)] };
+      if (recurrence && !due) due = firstDue(recurrence, today);
+      const auto = a.projectGiven ? null : suggestProject(a.title)?.projectId ?? null;
+      const projectId = a.projectId ?? auto;
+      const id = createTask({ title: a.title, due, time: a.time, priority: a.priority, recurrence, projectId: null }, { projectId, auto });
+      done.push({ kind: 'task', id, title: a.title, when: due ? dueLabel(due) + (a.time ? ' ' + a.time.replace(':', 'h') : '') : 'sans date', project: getProject(projectId)?.name || '' });
+    } else if (a.type === 'event') {
+      const id = saveEvent({ title: a.title, date: a.date, start: a.start, end: a.end, allDay: a.allDay, location: a.location, source: 'assistant' });
+      done.push({ kind: 'event', id, title: a.title, when: dueLabel(a.date) + (a.start ? ' ' + a.start.replace(':', 'h') + (a.end ? '–' + a.end.replace(':', 'h') : '') : ''), project: a.location });
+    }
+  }
+  return done;
+}
+
+function actionCards(m, chatId, index) {
+  if (!m.actions?.length) return '';
+  return `<div class="chat-actions">${m.actions.map((a, i) => {
+    const exists = a.kind === 'task' ? getTask(a.id) : getEvent(a.id);
+    const gone = a.undone || !exists;
+    return `
+    <div class="chat-action ${gone ? 'undone' : ''}">
+      ${icon(a.kind === 'task' ? 'tasks' : 'calendar')}
+      <div><strong>${gone ? 'Annulé' : a.kind === 'task' ? 'Tâche ajoutée' : 'Événement ajouté'} : ${esc(a.title)}</strong><small>${esc(a.when)}${a.project ? ' · ' + esc(a.project) : ''}</small></div>
+      ${gone ? '' : `<span class="ca-btns"><button class="btn small ghost" data-action="${a.kind === 'task' ? 'open-task' : 'open-event'}" data-id="${a.id}">Ouvrir</button>
+      <button class="btn small ghost danger" data-action="chat-undo" data-chat="${chatId}" data-msg="${index}" data-i="${i}">Annuler</button></span>`}
+    </div>`;
+  }).join('')}</div>`;
 }
 
 // Mise en forme simple et sûre : gras et listes.
@@ -115,6 +168,7 @@ const SUGGESTIONS = [
   'Quels projets je néglige ?',
   'Par quoi je commence aujourd\'hui ?',
   'Qu\'est-ce qui est en retard ?',
+  'Ajoute une tâche : préparer la réunion du bureau demain à 18h',
 ];
 
 export function assistantView() {
@@ -133,8 +187,8 @@ export function assistantView() {
   <div class="chat" id="chat">
     ${messages.length ? '' : `
       <div class="chat-hello">${icon('sparkles', 'empty-ic')}<h3>Pose-moi une question</h3>
-      <p>Je connais tes projets, tâches, relances et ton agenda.${state.settings.mailConsent ? ' Je vois aussi l\'expéditeur et l\'objet de tes mails récents.' : ' Je ne lis pas tes mails (tu peux l\'autoriser dans Réglages).'}</p></div>`}
-    ${messages.map((m) => `<div class="bubble ${m.role}">${m.role === 'assistant' ? formatAnswer(m.text) : `<p>${esc(m.text)}</p>`}</div>`).join('')}
+      <p>Je connais tes projets, tâches, relances et ton agenda, et je peux ajouter des tâches ou des événements pour toi (« ajoute réunion du bureau jeudi à 18h »).${state.settings.mailConsent ? ' Je vois aussi l\'expéditeur et l\'objet de tes mails récents.' : ' Je ne lis pas tes mails (tu peux l\'autoriser dans Réglages).'}</p></div>`}
+    ${messages.map((m, i) => `<div class="bubble ${m.role}">${m.role === 'assistant' ? formatAnswer(m.text) : `<p>${esc(m.text)}</p>`}</div>${actionCards(m, chat?.id, i)}`).join('')}
     ${pending ? '<div class="bubble assistant typing"><i></i><i></i><i></i></div>' : ''}
   </div>
   <div class="chat-suggestions chips scroll-x">${state.settings.mailConsent && state.accounts.length ? `<button class="chip on" data-action="analyze-mails">${icon('mail')}Trouver des tâches dans mes mails</button>` : ''}${SUGGESTIONS.map((s) => `<button class="chip" data-action="chat-suggest">${esc(s)}</button>`).join('')}</div>
@@ -170,8 +224,11 @@ async function ask(question) {
   try {
     // Les messages d'erreur ne sont pas renvoyés à Gemini.
     const history = currentMessages().filter((m) => !m.error);
-    const text = await callAssistantApi({ kind: 'chat', system: systemPrompt(), messages: history });
-    addMessage({ role: 'assistant', text: text || 'Je n\'ai pas de réponse.' });
+    const raw = await callAssistantApi({ kind: 'chat', json: true, system: systemPrompt(), messages: history.map(({ role, text }) => ({ role, text })) });
+    const { reply, actions } = parseAssistantReply(raw);
+    const done = applyActions(normalizeActions(actions, state.projects));
+    const text = reply || (done.length ? 'C\'est fait.' : 'Je n\'ai pas de réponse.');
+    addMessage({ role: 'assistant', text, ...(done.length ? { actions: done } : {}) });
   } catch (e) {
     addMessage({ role: 'assistant', text: `⚠️ ${e.message}`, error: true });
   } finally {
@@ -185,6 +242,17 @@ export const assistantHandlers = {
   'chat-suggest': (el) => ask(el.textContent),
   'chat-new': () => { currentId = null; update(() => {}, { silent: true }); },
   'chat-history': () => openHistory(),
+  'chat-undo': (el) => {
+    const c = state.chats.find((x) => x.id === el.dataset.chat);
+    const a = c?.messages[Number(el.dataset.msg)]?.actions?.[Number(el.dataset.i)];
+    if (!a || a.undone) return;
+    if (a.kind === 'task') deleteTask(a.id); else deleteEvent(a.id);
+    update((s) => {
+      const x = s.chats.find((y) => y.id === c.id)?.messages[Number(el.dataset.msg)]?.actions?.[Number(el.dataset.i)];
+      if (x) x.undone = true;
+    }, { silent: true });
+    toast(a.kind === 'task' ? 'Tâche supprimée' : 'Événement supprimé');
+  },
 };
 
 // ---------- Historique ----------

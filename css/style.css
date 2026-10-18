@@ -737,3 +737,17 @@ button.card.nudge { width: 100%; text-align: left; }
 .chat-title { margin: -8px 2px 14px; font-size: 13px; color: var(--muted); }
 .chat-list .row-item.current { background: var(--accent-soft); }
 .chat-list .ri-main > .ic { flex: none; }
+
+/* Ajouts faits par l'assistant */
+.chat-actions { display: grid; gap: 6px; justify-self: start; max-width: 88%; width: 100%; animation: rise .3s var(--ease) both; }
+.chat-action { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--ok) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--border)); }
+.chat-action > .ic { width: 18px; height: 18px; color: var(--ok); flex: none; }
+.chat-action > div { flex: 1; min-width: 0; display: grid; }
+.chat-action strong { font-size: 13.5px; font-weight: 650; overflow-wrap: anywhere; }
+.chat-action small { font-size: 12.5px; color: var(--muted); }
+.chat-action.undone { opacity: .55; background: var(--surface-2); border-color: var(--border); }
+.chat-action.undone > .ic { color: var(--muted); }
+.chat-action { flex-wrap: wrap; }
+.chat-action > div { flex: 1 1 200px; }
+.ca-btns { display: flex; gap: 4px; margin-left: auto; }
+@media (max-width: 640px) { .chat-actions { max-width: 100%; } }
