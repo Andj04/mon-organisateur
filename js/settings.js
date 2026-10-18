@@ -33,6 +33,12 @@ function syncCard() {
   </section>`;
 }
 
+const toggle = (key, title, text) => `
+  <div class="setting-row">
+    <div><div><strong>${title}</strong><p>${text}</p></div></div>
+    <label class="switch"><input type="checkbox" data-toggle-setting="${key}" ${state.settings[key] ? 'checked' : ''}><i></i></label>
+  </div>`;
+
 export function settingsView(theme) {
   const perm = notifPermission();
   const s = state.stats;
@@ -74,6 +80,9 @@ export function settingsView(theme) {
       <label class="field"><span>Mot de passe de l'assistant</span>
         <input type="password" data-local="app-password" placeholder="${hasPass ? 'Enregistré sur cet appareil' : 'Celui choisi dans Vercel (APP_PASSWORD)'}" autocomplete="new-password"></label>
       <div class="row-gap wrap">${hasPass ? `<button class="btn" data-action="test-assistant">${icon('sparkles')}Tester</button>` : ''}</div>
+      ${toggle('briefing', 'Résumé du matin', 'Chaque jour, une carte en haut de la page Aujourd\'hui : cours, priorités, retards et relances.')}
+      ${toggle('mailConsent', 'Autoriser l\'assistant à lire mes mails', 'Uniquement l\'expéditeur, l\'objet, la date et les 200 premiers caractères, pour te proposer des tâches. Le mail complet n\'est jamais envoyé.')}
+      ${state.settings.mailConsent ? toggle('autoMailTasks', 'Analyser automatiquement les nouveaux mails', 'Au plus toutes les 2 heures, pour économiser ton quota gratuit de Gemini.') : ''}
       <p class="fine">${icon('shield')}La clé Gemini est rangée sur le serveur Vercel, jamais dans l'application. Ce mot de passe empêche d'autres personnes de l'utiliser. Il reste sur cet appareil.</p>
     </div>
   </section>

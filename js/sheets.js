@@ -18,6 +18,7 @@ let pushedHistory = false;
 let backPending = false;
 let wantPush = false;
 let closeTimer = null;
+let afterClose = null; // action à lancer une fois le retour d'historique terminé (ex. changer de page)
 
 export function openSheet(html, onMount) {
   const d = dialog();
@@ -40,9 +41,10 @@ function animateClose() {
   closeTimer = setTimeout(() => { d.close(); d.classList.remove('closing'); d.innerHTML = ''; }, 180);
 }
 
-export function closeSheet() {
+export function closeSheet(then) {
   animateClose();
-  if (pushedHistory) { pushedHistory = false; backPending = true; history.back(); }
+  if (pushedHistory) { pushedHistory = false; backPending = true; afterClose = then || null; history.back(); }
+  else then?.();
 }
 
 export function initSheets() {
@@ -52,6 +54,9 @@ export function initSheets() {
   window.addEventListener('popstate', () => {
     if (backPending) {
       backPending = false;
+      const fn = afterClose;
+      afterClose = null;
+      fn?.();
       if (wantPush) { wantPush = false; history.pushState({ sheet: true }, ''); pushedHistory = true; }
       return;
     }
@@ -367,7 +372,7 @@ export function openProjectEditor(id, onCreated) {
       if (!name) return;
       const data = { name, description: form.description.value.trim(), color, inactivityDays: Number(form.inactivityDays.value) };
       if (p) { updateProject(id, data); closeSheet(); toast('Projet enregistré'); }
-      else { const newId = createProject(data); closeSheet(); toast(`Projet « ${name} » créé`); onCreated?.(newId); }
+      else { const newId = createProject(data); toast(`Projet « ${name} » créé`); closeSheet(() => onCreated?.(newId)); }
     });
     if (!p) focusSoon(form.elements.name);
   });
@@ -384,6 +389,6 @@ export function openConfirm({ title, text, confirm, onConfirm }) {
         <button class="btn danger-fill" data-ok>${esc(confirm)}</button>
       </div>
     </div>`, (d) => {
-    d.querySelector('[data-ok]').addEventListener('click', () => { closeSheet(); onConfirm(); });
+    d.querySelector('[data-ok]').addEventListener('click', () => closeSheet(onConfirm));
   });
 }

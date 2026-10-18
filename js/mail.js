@@ -89,10 +89,12 @@ export async function refreshAccount(acc, interactive = false) {
 }
 
 export function refreshAll(interactive = false, maxAgeMin = 20) {
+  const jobs = [];
   for (const acc of state.accounts) {
     const box = state.mails[acc.id];
-    if (interactive || !box?.fetchedAt || Date.now() - box.fetchedAt > maxAgeMin * 60000) refreshAccount(acc, interactive);
+    if (interactive || !box?.fetchedAt || Date.now() - box.fetchedAt > maxAgeMin * 60000) jobs.push(refreshAccount(acc, interactive));
   }
+  return Promise.all(jobs);
 }
 
 export function allMails() {
@@ -171,6 +173,9 @@ export function mailCard(m, { compact = false } = {}) {
 }
 
 let filter = 'important';
+// Contenu ajouté en haut de la page (propositions de tâches), fourni par l'application.
+let extraTop = () => '';
+export function setMailsTop(fn) { extraTop = fn; }
 
 export function mailsView() {
   const accounts = state.accounts;
@@ -190,8 +195,9 @@ export function mailsView() {
   return `
   <div class="page-head">
     <h1>Mails</h1>
-    ${accounts.length ? `<button class="btn" data-action="mail-refresh">${icon('repeat')}<span>Actualiser</span></button>` : ''}
+    ${accounts.length ? `<div class="row-gap">${state.settings.mailConsent ? `<button class="btn" data-action="analyze-mails">${icon('sparkles')}<span>Proposer des tâches</span></button>` : ''}<button class="btn" data-action="mail-refresh">${icon('repeat')}<span>Actualiser</span></button></div>` : ''}
   </div>
+  ${extraTop()}
   <section class="group">
     <div class="card form-card">
       ${accRow || '<p class="fine">Connecte tes boîtes mail en lecture seule. Les mails restent sur cet appareil et ne sont jamais envoyés à l\'assistant.</p>'}

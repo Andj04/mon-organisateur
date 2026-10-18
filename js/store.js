@@ -20,10 +20,17 @@ const defaults = () => ({
   deleted: {}, // éléments supprimés : { id: date }, pour que la suppression se propage aux autres appareils
   shared: { name: '', lastReview: null, timetable: { filiere: 'Conseil', option: 'GI', groupe: '7' } },
   // Propre à cet appareil :
-  settings: { notifications: false, lastSummary: null, syncEnabled: false, driveEmail: '' },
+  settings: {
+    notifications: false, lastSummary: null, syncEnabled: false, driveEmail: '',
+    mailConsent: false, // autorise l'assistant à lire objet, expéditeur et court extrait des mails
+    autoMailTasks: true, // analyse automatique des nouveaux mails (si autorisé)
+    briefing: true, // résumé du matin
+  },
   accounts: [], // comptes mail : { id, type: 'gmail'|'outlook', email }
   mails: {}, // cache local : { [accountId]: { fetchedAt, items: [] } }
   sync: { lastSync: null, status: 'off', error: '' },
+  mailProposals: { items: [], analyzed: {}, lastRun: null, running: false, error: '' }, // tâches proposées depuis les mails
+  briefing: { date: null, text: '', loading: false, error: '' }, // résumé du matin
 });
 
 export let state = defaults();
@@ -34,10 +41,13 @@ let saveTimer = null;
 function migrate(s) {
   const d = defaults();
   const out = { ...d, ...s };
-  for (const k of ['model', 'stats', 'settings', 'sync', 'shared']) out[k] = { ...d[k], ...(s[k] || {}) };
+  for (const k of ['model', 'stats', 'settings', 'sync', 'shared', 'mailProposals', 'briefing']) out[k] = { ...d[k], ...(s[k] || {}) };
   out.shared.timetable = { ...d.shared.timetable, ...(s.shared?.timetable || {}) };
   // Version 1 : le prénom était dans les réglages locaux.
   if (s.settings?.name && !s.shared?.name) out.shared.name = s.settings.name;
+  // Un chargement interrompu ne doit pas rester bloqué au redémarrage.
+  out.mailProposals.running = false;
+  out.briefing.loading = false;
   out.version = SCHEMA_VERSION;
   return out;
 }

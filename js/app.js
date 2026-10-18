@@ -18,6 +18,9 @@ import { toast } from './toast.js';
 import { startNotifier, enableNotifications, disableNotifications, testNotification, updateBadge } from './notify.js';
 import { syncNow, startAutoSync, disconnectSync } from './sync.js';
 import { preloadGoogle } from './google.js';
+import { makeBriefing, briefingHandlers } from './briefing.js';
+import { analyzeMails, mailTasksHandlers, proposalsCard } from './mailtasks.js';
+import { setMailsTop } from './mail.js';
 
 const $ = (sel) => document.querySelector(sel);
 const filter = { status: 'open', project: 'all' };
@@ -175,6 +178,8 @@ const handlers = {
   ...mailHandlers,
   ...assistantHandlers,
   ...extrasHandlers,
+  ...briefingHandlers,
+  ...mailTasksHandlers,
   'quick-add': () => {
     const r = route();
     openQuickAdd(r.name === 'projet' ? { projectId: r.arg } : r.name === 'idees' ? { mode: 'idee' } : {});
@@ -259,6 +264,12 @@ async function onChange(e) {
     }
     render();
   }
+  if (el.dataset.toggleSetting) {
+    const key = el.dataset.toggleSetting;
+    update((s) => { s.settings[key] = el.checked; }, { silent: true });
+    if (key === 'briefing' && el.checked) makeBriefing();
+    if (key === 'mailConsent' && el.checked) toast('Autorisé : utilise « Proposer des tâches » dans Mails');
+  }
   if (el.dataset.local === 'app-password' && el.value) {
     local.set('app-password', el.value);
     el.value = '';
@@ -332,6 +343,11 @@ function onKey(e) {
   if (e.key === '/') { e.preventDefault(); location.hash = '#/recherche'; setTimeout(() => $('[data-search]')?.focus(), 50); }
 }
 
+// Récupère les mails puis, si tu l'as autorisé, cherche des tâches dans les nouveaux.
+function refreshMailsThenAnalyze() {
+  refreshAll(false).then(() => analyzeMails({ auto: true }));
+}
+
 // ---------- Démarrage ----------
 async function start() {
   applyTheme(getTheme());
@@ -339,6 +355,7 @@ async function start() {
   await initStore();
   rollDailyTasks();
   initSheets();
+  setMailsTop(proposalsCard);
 
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
@@ -349,7 +366,7 @@ async function start() {
   matchMedia('(min-width: 900px)').addEventListener('change', () => render());
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) flush();
-    else { rollDailyTasks(); refreshAll(false); render(); }
+    else { rollDailyTasks(); refreshMailsThenAnalyze(); makeBriefing(); render(); }
   });
 
   subscribe(() => { render(); updateBadge(); });
@@ -368,7 +385,8 @@ async function start() {
   preloadGoogle();
   startNotifier();
   startAutoSync();
-  refreshAll(false);
+  refreshMailsThenAnalyze();
+  makeBriefing();
 }
 
 start();

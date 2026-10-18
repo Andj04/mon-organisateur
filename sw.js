@@ -1,5 +1,5 @@
 // Service worker : fonctionnement hors ligne, notifications et réveil périodique.
-const VERSION = 'v2.0.1';
+const VERSION = 'v2.1.0';
 const CACHE = 'mon-organisateur-' + VERSION;
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
@@ -7,7 +7,7 @@ const FILES = [
   'js/dates.js', 'js/db.js', 'js/extras.js', 'js/google.js', 'js/icons.js', 'js/mail.js', 'js/merge.js',
   'js/microsoft.js', 'js/notify.js', 'js/parser.js', 'js/recurrence.js', 'js/settings.js', 'js/sheets.js',
   'js/store.js', 'js/sync.js', 'js/text.js', 'js/timetable-parse.js', 'js/timetable.js', 'js/toast.js',
-  'js/today.js', 'js/views.js', 'auth.html',
+  'js/today.js', 'js/views.js', 'js/ai-parse.js', 'js/briefing.js', 'js/mailtasks.js', 'auth.html',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/badge-96.png',
 ];
 

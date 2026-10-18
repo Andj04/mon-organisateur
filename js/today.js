@@ -7,6 +7,8 @@ import { openTasks, doneToday, sortTasks, eventsOn, dueFollowups } from './actio
 import { section, empty, ring } from './views.js';
 import { inactiveBlock, followupsBlock } from './extras.js';
 import { importantMails, mailCard } from './mail.js';
+import { briefingCard } from './briefing.js';
+import { proposalsCard } from './mailtasks.js';
 
 function eventsBlock(today) {
   const events = eventsOn(today);
@@ -77,6 +79,8 @@ export function todayView() {
     </div>
     ${ring(done, total)}
   </div>
+  ${briefingCard()}
+  ${proposalsCard()}
   ${needReview ? `<a class="card nudge" href="#/revue">${icon('check')}<div><strong>C'est le moment de ta revue de la semaine</strong><p>5 minutes pour faire le point sur le retard, les blocages et les relances.</p></div>${icon('next')}</a>` : ''}
   ${eventsBlock(today)}
   ${tasksBlock}

@@ -7,6 +7,7 @@ import { todayISO, addDays, fmt, diffDays, toISO } from './dates.js';
 import { getProject, openTasks, inactiveProjects } from './actions.js';
 import { recurrenceLabel } from './recurrence.js';
 import { toast } from './toast.js';
+import { allMails } from './mail.js';
 
 const messages = []; // conversation de la session : { role: 'user'|'assistant', text }
 let pending = false;
@@ -67,6 +68,15 @@ export function buildContext() {
     lines.push('\nRELANCES :');
     for (const f of follow) lines.push(`- ${f.kind === 'relancer' ? 'À relancer' : 'Attend une réponse de'} ${f.person} : ${f.subject} (depuis ${day(f.since)})`);
   }
+  // Mails : seulement si tu l'as autorisé, et uniquement expéditeur, objet et date.
+  if (state.settings.mailConsent) {
+    const since = Date.now() - 7 * 86400000;
+    const mails = allMails().filter((m) => m.date >= since && !m.promo).slice(0, 25);
+    if (mails.length) {
+      lines.push('\nMAILS DES 7 DERNIERS JOURS (expéditeur | objet | reçu le) :');
+      for (const m of mails) lines.push(`- ${m.fromName || m.fromEmail} | ${m.subject} | ${day(toISO(new Date(m.date)))}${m.important ? ' (important)' : ''}`);
+    }
+  }
   return lines.join('\n');
 }
 
@@ -81,7 +91,7 @@ ${buildContext()}`;
 }
 
 // Mise en forme simple et sûre : gras et listes.
-function formatAnswer(text) {
+export function formatAnswer(text) {
   const safe = esc(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const out = [];
   let list = false;
@@ -110,11 +120,11 @@ export function assistantView() {
   <div class="chat" id="chat">
     ${messages.length ? '' : `
       <div class="chat-hello">${icon('sparkles', 'empty-ic')}<h3>Pose-moi une question</h3>
-      <p>Je connais tes projets, tâches, relances et ton agenda. Je ne lis jamais tes mails.</p></div>`}
+      <p>Je connais tes projets, tâches, relances et ton agenda.${state.settings.mailConsent ? ' Je vois aussi l\'expéditeur et l\'objet de tes mails récents.' : ' Je ne lis pas tes mails (tu peux l\'autoriser dans Réglages).'}</p></div>`}
     ${messages.map((m) => `<div class="bubble ${m.role}">${m.role === 'assistant' ? formatAnswer(m.text) : `<p>${esc(m.text)}</p>`}</div>`).join('')}
     ${pending ? '<div class="bubble assistant typing"><i></i><i></i><i></i></div>' : ''}
   </div>
-  <div class="chat-suggestions chips scroll-x">${SUGGESTIONS.map((s) => `<button class="chip" data-action="chat-suggest">${esc(s)}</button>`).join('')}</div>
+  <div class="chat-suggestions chips scroll-x">${state.settings.mailConsent && state.accounts.length ? `<button class="chip on" data-action="analyze-mails">${icon('mail')}Trouver des tâches dans mes mails</button>` : ''}${SUGGESTIONS.map((s) => `<button class="chip" data-action="chat-suggest">${esc(s)}</button>`).join('')}</div>
   <form class="chat-input card" data-form="chat">
     <textarea name="q" rows="1" placeholder="Ta question…" enterkeyhint="send" ${pending ? 'disabled' : ''}></textarea>
     <button class="icon-btn send" type="submit" aria-label="Envoyer" ${pending ? 'disabled' : ''}>${icon('next')}</button>

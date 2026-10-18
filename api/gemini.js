@@ -71,7 +71,9 @@ export default async function handler(req, res) {
     body = {
       system_instruction: { parts: [{ text: String(input.system || '').slice(0, 60000) }] },
       contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.text).slice(0, 4000) }] })),
-      generationConfig: { temperature: 0.4 },
+      generationConfig: input.json
+        ? { temperature: 0.2, responseMimeType: 'application/json' }
+        : { temperature: 0.4 },
     };
   } else {
     return res.status(400).json({ error: 'Requête inconnue.' });
