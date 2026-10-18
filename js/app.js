@@ -17,6 +17,7 @@ import { parseQuick } from './parser.js';
 import { toast } from './toast.js';
 import { startNotifier, enableNotifications, disableNotifications, testNotification, updateBadge } from './notify.js';
 import { syncNow, startAutoSync, disconnectSync } from './sync.js';
+import { preloadGoogle } from './google.js';
 
 const $ = (sel) => document.querySelector(sel);
 const filter = { status: 'open', project: 'all' };
@@ -364,6 +365,7 @@ async function start() {
   const params = new URLSearchParams(location.search);
   const ajout = params.get('ajout');
   if (ajout) { history.replaceState(null, '', location.pathname + location.hash); openQuickAdd(ajout === 'idee' ? { mode: 'idee' } : {}); }
+  preloadGoogle();
   startNotifier();
   startAutoSync();
   refreshAll(false);

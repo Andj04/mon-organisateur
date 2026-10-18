@@ -51,10 +51,25 @@ export async function googleToken(key, scope, email, { interactive = false } = {
         writeTokens(all);
         resolve(r.access_token);
       },
-      error_callback: (e) => reject(new Error(e?.type === 'popup_closed' ? 'Connexion annulée.' : 'Connexion Google impossible (fenêtre bloquée ?).')),
+      error_callback: (e) => {
+        const messages = {
+          popup_closed: 'Connexion annulée.',
+          popup_failed_to_open: 'Fenêtre de connexion bloquée par le navigateur. Autorise les fenêtres pop-up pour ce site, puis réessaie.',
+        };
+        reject(new Error(messages[e?.type] || `Connexion Google impossible (${e?.type || 'erreur inconnue'}).`));
+      },
     });
     client.requestAccessToken();
   });
+}
+
+// Charge le module Google dès le démarrage : la fenêtre de connexion s'ouvre alors
+// immédiatement au clic, sans être prise pour une fenêtre surgissante non désirée.
+export async function preloadGoogle() {
+  try {
+    const { googleClientId } = await getConfig();
+    if (googleClientId) await loadGis();
+  } catch { /* hors ligne : chargé plus tard */ }
 }
 
 export function forgetGoogleToken(key) {
