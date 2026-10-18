@@ -31,12 +31,14 @@ const defaults = () => ({
   sync: { lastSync: null, status: 'off', error: '' },
   mailProposals: { items: [], analyzed: {}, lastRun: null, running: false, error: '' }, // tâches proposées depuis les mails
   briefing: { date: null, text: '', loading: false, error: '' }, // résumé du matin
+  chats: [], // historique de l'assistant : { id, title, messages, createdAt, updatedAt }, 10 au maximum
 });
 
 export let state = defaults();
 const listeners = new Set();
 let undoSnapshot = null;
 let saveTimer = null;
+let pendingSince = 0; // première modification non encore sauvegardée
 
 function migrate(s) {
   const d = defaults();
@@ -88,14 +90,18 @@ export function resetState() {
   emit({});
 }
 
+// Sauvegarde regroupée après une courte pause, mais jamais retardée de plus d'une seconde.
 function persist(now = false) {
   clearTimeout(saveTimer);
-  if (now) return save('state', state);
-  saveTimer = setTimeout(() => save('state', state), 120);
+  if (!pendingSince) pendingSince = Date.now();
+  const write = () => { pendingSince = 0; return save('state', state); };
+  if (now || Date.now() - pendingSince > 1000) return write();
+  saveTimer = setTimeout(write, 120);
 }
 
 export function flush() {
   clearTimeout(saveTimer);
+  pendingSince = 0;
   return save('state', state);
 }
 

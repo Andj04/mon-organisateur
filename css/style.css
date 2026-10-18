@@ -732,3 +732,8 @@ button.card.nudge { width: 100%; text-align: left; }
 .pr-fields .field input, .pr-fields .field select { min-height: 40px; padding: 8px 10px; }
 @media (max-width: 380px) { .pr-fields { grid-template-columns: 1fr; } }
 .setting-row + .setting-row { padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* Historique de l'assistant */
+.chat-title { margin: -8px 2px 14px; font-size: 13px; color: var(--muted); }
+.chat-list .row-item.current { background: var(--accent-soft); }
+.chat-list .ri-main > .ic { flex: none; }

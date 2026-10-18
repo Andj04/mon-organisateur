@@ -1,15 +1,20 @@
 // Assistant conversationnel (Gemini via le relais Vercel).
 // Seuls des titres, dates et noms sont envoyés : jamais le contenu des mails ni les notes.
-import { state, local, update } from './store.js';
+import { state, local, update, uid } from './store.js';
 import { esc } from './text.js';
 import { icon } from './icons.js';
-import { todayISO, addDays, fmt, diffDays, toISO } from './dates.js';
+import { todayISO, addDays, fmt, diffDays, toISO, timeAgo } from './dates.js';
 import { getProject, openTasks, inactiveProjects } from './actions.js';
 import { recurrenceLabel } from './recurrence.js';
 import { toast } from './toast.js';
 import { allMails } from './mail.js';
+import { openSheet, closeSheet, openConfirm } from './sheets.js';
 
-const messages = []; // conversation de la session : { role: 'user'|'assistant', text }
+const MAX_CHATS = 10;
+let currentId = null; // conversation affichée (null = nouvelle conversation)
+
+const currentChat = () => state.chats.find((c) => c.id === currentId) || null;
+const currentMessages = () => currentChat()?.messages || [];
 let pending = false;
 const PRIORITY = ['', 'basse', 'moyenne', 'haute'];
 
@@ -114,8 +119,16 @@ const SUGGESTIONS = [
 
 export function assistantView() {
   const configured = Boolean(local.get('app-password'));
+  const chat = currentChat();
+  const messages = currentMessages();
   return `
-  <div class="page-head"><h1>Assistant</h1>${messages.length ? `<button class="btn ghost" data-action="chat-clear">${icon('trash')}<span>Effacer</span></button>` : ''}</div>
+  <div class="page-head"><h1>Assistant</h1>
+    <div class="row-gap">
+      ${state.chats.length ? `<button class="btn ghost" data-action="chat-history">${icon('clock')}<span>Historique</span></button>` : ''}
+      ${messages.length ? `<button class="btn" data-action="chat-new">${icon('plus')}<span>Nouvelle</span></button>` : ''}
+    </div>
+  </div>
+  ${chat ? `<p class="chat-title">${esc(chat.title)} · ${esc(timeAgo(chat.updatedAt))}</p>` : ''}
   ${configured ? '' : `<div class="card form-card"><p class="fine">${icon('alert')}Pour utiliser l'assistant, saisis le mot de passe choisi sur Vercel dans <a href="#/reglages"><b>Réglages</b></a>.</p></div>`}
   <div class="chat" id="chat">
     ${messages.length ? '' : `
@@ -132,16 +145,35 @@ export function assistantView() {
   <details class="fine-details"><summary>Ce qui est envoyé à Gemini</summary><pre>${esc(buildContext())}</pre></details>`;
 }
 
+// Ajoute un message à la conversation en cours (créée au premier message) et garde les 10 plus récentes.
+function addMessage(msg) {
+  update((s) => {
+    let c = s.chats.find((x) => x.id === currentId);
+    if (!c) {
+      currentId = uid();
+      const title = msg.text.length > 60 ? msg.text.slice(0, 57) + '…' : msg.text;
+      c = { id: currentId, title, messages: [], createdAt: Date.now() };
+      s.chats.unshift(c);
+    }
+    c.messages.push(msg);
+    c.updatedAt = Date.now();
+    s.chats.sort((a, b) => b.updatedAt - a.updatedAt);
+    s.chats = s.chats.slice(0, MAX_CHATS);
+  }, { silent: true });
+}
+
 async function ask(question) {
   if (!question.trim() || pending) return;
-  messages.push({ role: 'user', text: question.trim() });
+  addMessage({ role: 'user', text: question.trim() });
   pending = true;
   update(() => {}, { silent: true });
   try {
-    const text = await callAssistantApi({ kind: 'chat', system: systemPrompt(), messages });
-    messages.push({ role: 'assistant', text: text || 'Je n\'ai pas de réponse.' });
+    // Les messages d'erreur ne sont pas renvoyés à Gemini.
+    const history = currentMessages().filter((m) => !m.error);
+    const text = await callAssistantApi({ kind: 'chat', system: systemPrompt(), messages: history });
+    addMessage({ role: 'assistant', text: text || 'Je n\'ai pas de réponse.' });
   } catch (e) {
-    messages.push({ role: 'assistant', text: `⚠️ ${e.message}` });
+    addMessage({ role: 'assistant', text: `⚠️ ${e.message}`, error: true });
   } finally {
     pending = false;
     update(() => {}, { silent: true });
@@ -151,8 +183,52 @@ async function ask(question) {
 
 export const assistantHandlers = {
   'chat-suggest': (el) => ask(el.textContent),
-  'chat-clear': () => { messages.length = 0; update(() => {}, { silent: true }); },
+  'chat-new': () => { currentId = null; update(() => {}, { silent: true }); },
+  'chat-history': () => openHistory(),
 };
+
+// ---------- Historique ----------
+function historyHtml() {
+  if (!state.chats.length) return '<h2 class="sheet-title">Historique</h2><p class="fine">Aucune conversation enregistrée.</p>';
+  return `
+  <h2 class="sheet-title">Historique</h2>
+  <p class="fine">Tes ${MAX_CHATS} dernières conversations, enregistrées sur cet appareil.</p>
+  <div class="card list chat-list">${state.chats.map((c) => `
+    <div class="row-item ${c.id === currentId ? 'current' : ''}">
+      <button class="ri-main" data-chat-open="${c.id}">${icon('sparkles')}<span><strong>${esc(c.title)}</strong><small>${esc(timeAgo(c.updatedAt))} · ${c.messages.filter((m) => m.role === 'user').length} question${c.messages.filter((m) => m.role === 'user').length > 1 ? 's' : ''}</small></span></button>
+      <button class="icon-btn small" data-chat-del="${c.id}" aria-label="Supprimer cette conversation">${icon('trash')}</button>
+    </div>`).join('')}</div>
+  <div class="sheet-actions">
+    <button class="btn ghost danger" data-chat-wipe>${icon('trash')}Tout effacer</button>
+    <button class="btn" data-action="close-sheet">Fermer</button>
+  </div>`;
+}
+
+function openHistory() {
+  openSheet(`<div class="chat-history">${historyHtml()}</div>`, (d) => {
+    const box = d.querySelector('.chat-history');
+    box.addEventListener('click', (e) => {
+      const open = e.target.closest('[data-chat-open]');
+      const del = e.target.closest('[data-chat-del]');
+      if (open) {
+        currentId = open.dataset.chatOpen;
+        closeSheet(() => update(() => {}, { silent: true }));
+      } else if (del) {
+        const id = del.dataset.chatDel;
+        update((s) => { s.chats = s.chats.filter((c) => c.id !== id); }, { silent: true });
+        if (currentId === id) currentId = null;
+        box.innerHTML = historyHtml();
+      } else if (e.target.closest('[data-chat-wipe]')) {
+        openConfirm({
+          title: 'Effacer tout l\'historique ?',
+          text: 'Les conversations enregistrées sur cet appareil seront supprimées.',
+          confirm: 'Tout effacer',
+          onConfirm: () => { currentId = null; update((s) => { s.chats = []; }, { silent: true }); toast('Historique effacé'); },
+        });
+      }
+    });
+  });
+}
 
 export function onChatSubmit(form) {
   const q = form.q.value;

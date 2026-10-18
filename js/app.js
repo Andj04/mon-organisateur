@@ -363,6 +363,7 @@ async function start() {
   document.addEventListener('submit', onSubmit);
   document.addEventListener('keydown', onKey);
   window.addEventListener('hashchange', () => render({ transition: true }));
+  window.addEventListener('pagehide', () => flush());
   matchMedia('(min-width: 900px)').addEventListener('change', () => render());
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) flush();
