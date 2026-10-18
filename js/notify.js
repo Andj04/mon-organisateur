@@ -2,7 +2,7 @@
 // résumé du jour à l'ouverture, et réveil périodique par Android quand c'est possible.
 import { state, update } from './store.js';
 import { todayISO, nowTime } from './dates.js';
-import { openTasks } from './actions.js';
+import { openTasks, dueFollowups } from './actions.js';
 
 export const notifSupported = () => 'Notification' in window && 'serviceWorker' in navigator;
 export const notifPermission = () => (notifSupported() ? Notification.permission : 'unsupported');
@@ -49,7 +49,7 @@ function summary() {
   const open = openTasks();
   const late = open.filter((t) => t.due && t.due < today).length;
   const now = open.filter((t) => t.due === today).length;
-  return { late, now };
+  return { late, now, follow: dueFollowups().length };
 }
 
 export function updateBadge() {
@@ -66,12 +66,13 @@ function tick() {
 
   // Résumé du jour, une fois par jour, à partir de 7 h.
   if (state.settings.lastSummary !== today && time >= '07:00') {
-    const { late, now } = summary();
-    update((s) => { s.settings.lastSummary = today; });
-    if (late || now) {
+    const { late, now, follow } = summary();
+    update((s) => { s.settings.lastSummary = today; }, { silent: true });
+    if (late || now || follow) {
       const parts = [];
       if (now) parts.push(`${now} tâche${now > 1 ? 's' : ''} aujourd'hui`);
       if (late) parts.push(`${late} en retard`);
+      if (follow) parts.push(`${follow} relance${follow > 1 ? 's' : ''}`);
       show('Ta journée', { body: parts.join(' · '), tag: 'resume' });
     }
   }
@@ -81,7 +82,7 @@ function tick() {
     if (t.due !== today || !t.time || t.time > time) continue;
     const key = `${t.due} ${t.time}`;
     if (t.notified === key) continue;
-    update((s) => { const x = s.tasks.find((y) => y.id === t.id); if (x) x.notified = key; });
+    update((s) => { const x = s.tasks.find((y) => y.id === t.id); if (x) x.notified = key; }, { silent: true });
     show(t.title, { body: `Prévu à ${t.time.replace(':', 'h')}`, tag: t.id, data: { taskId: t.id } });
   }
 }

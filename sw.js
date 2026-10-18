@@ -1,11 +1,13 @@
 // Service worker : fonctionnement hors ligne, notifications et réveil périodique.
-const VERSION = 'v1.0.0';
+const VERSION = 'v2.0.0';
 const CACHE = 'mon-organisateur-' + VERSION;
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
-  'js/app.js', 'js/actions.js', 'js/classifier.js', 'js/dates.js', 'js/db.js', 'js/icons.js',
-  'js/notify.js', 'js/parser.js', 'js/recurrence.js', 'js/sheets.js', 'js/store.js', 'js/text.js',
-  'js/toast.js', 'js/views.js',
+  'js/app.js', 'js/actions.js', 'js/assistant.js', 'js/calendar.js', 'js/classifier.js', 'js/config.js',
+  'js/dates.js', 'js/db.js', 'js/extras.js', 'js/google.js', 'js/icons.js', 'js/mail.js', 'js/merge.js',
+  'js/microsoft.js', 'js/notify.js', 'js/parser.js', 'js/recurrence.js', 'js/settings.js', 'js/sheets.js',
+  'js/store.js', 'js/sync.js', 'js/text.js', 'js/timetable-parse.js', 'js/timetable.js', 'js/toast.js',
+  'js/today.js', 'js/views.js', 'auth.html',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/badge-96.png',
 ];
 
@@ -24,7 +26,8 @@ self.addEventListener('activate', (e) => {
 // Réseau d'abord pour avoir la dernière version, cache si hors ligne.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.includes('/api/')) return;
   e.respondWith(
     fetch(req)
       .then((res) => {
@@ -75,8 +78,11 @@ self.addEventListener('periodicsync', (e) => {
     const open = s.tasks.filter((t) => !t.done && t.due);
     const now = open.filter((t) => t.due === today).length;
     const late = open.filter((t) => t.due < today).length;
-    if (!now && !late) return;
+    const follow = (s.followups || []).filter((f) => !f.done && f.remindOn && f.remindOn <= today).length;
+    if (!now && !late && !follow) return;
+    if (s.settings.lastSummary === today) return;
     const parts = [];
+    if (follow) parts.push(`${follow} relance${follow > 1 ? 's' : ''}`);
     if (now) parts.push(`${now} tâche${now > 1 ? 's' : ''} aujourd'hui`);
     if (late) parts.push(`${late} en retard`);
     await self.registration.showNotification('Ta journée', {

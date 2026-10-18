@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion</title>
+  <style>body{font:16px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#f5f6fa;color:#151826}</style>
+</head>
+<body>
+  <p>Connexion en cours…</p>
+  <script>
+    // Renvoie le résultat de la connexion Microsoft à l'application, puis se ferme.
+    var p = new URLSearchParams(location.search);
+    var msg = { type: 'ms-auth', code: p.get('code'), state: p.get('state'), error: p.get('error'), error_description: p.get('error_description') };
+    try { new BroadcastChannel('mo-auth').postMessage(msg); } catch (e) {}
+    try { if (window.opener) window.opener.postMessage(msg, location.origin); } catch (e) {}
+    document.body.textContent = 'Connexion terminée. Tu peux fermer cette fenêtre.';
+    setTimeout(function () { window.close(); }, 300);
+  </script>
+</body>
+</html>

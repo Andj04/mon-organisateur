@@ -16,6 +16,8 @@
     { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "shortcuts": [
-    { "name": "Nouvelle tâche", "short_name": "Ajouter", "url": "./?ajout=1#/aujourdhui", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Nouvelle tâche", "short_name": "Tâche", "url": "./?ajout=1#/aujourdhui", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Capturer une idée", "short_name": "Idée", "url": "./?ajout=idee#/idees", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Agenda", "short_name": "Agenda", "url": "./#/agenda", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

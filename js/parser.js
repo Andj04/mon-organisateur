@@ -124,3 +124,41 @@ export function parseQuick(input, projects = [], today = todayISO()) {
   out.title = title || input.trim();
   return out;
 }
+
+// Repère les dates futures citées dans un texte (objet ou extrait de mail).
+// Renvoie [{ due, time, label }] sans doublon, triées.
+const FIND_DATE_RE = new RegExp(
+  `(\\d{1,2})[/.](\\d{1,2})(?:[/.](\\d{2,4}))?|(\\d{1,2})(?:er)?\\s+${MONTH_RE}(?:\\s+(\\d{4}))?|\\b(demain|apr[eè]s[- ]demain)\\b`,
+  'gi',
+);
+const FIND_TIME_RE = /^[\s,]*(?:(?:à|a|de|dès|vers)\s+)?(\d{1,2})\s?(?:h|:)\s?(\d{2})?/i;
+
+export function findDates(text, today = todayISO()) {
+  const out = new Map();
+  const horizon = addDays(today, 366);
+  for (const m of String(text || '').matchAll(FIND_DATE_RE)) {
+    let iso = null;
+    if (m[1]) {
+      const d = Number(m[1]);
+      const mo = Number(m[2]);
+      let y = m[3] ? Number(m[3]) : guessYear(mo, d, today);
+      if (y < 100) y += 2000;
+      if (mo >= 1 && mo <= 12 && isValidDate(y, mo, d)) iso = toISO(new Date(y, mo - 1, d));
+    } else if (m[4]) {
+      const d = Number(m[4]);
+      const mo = MONTHS[normalize(m[5]).replace('.', '')];
+      const y = m[6] ? Number(m[6]) : guessYear(mo, d, today);
+      if (mo && isValidDate(y, mo, d)) iso = toISO(new Date(y, mo - 1, d));
+    } else if (m[7]) {
+      iso = addDays(today, /apr/i.test(m[7]) ? 2 : 1);
+    }
+    if (!iso || iso < today || iso > horizon) continue;
+    const after = String(text).slice(m.index + m[0].length, m.index + m[0].length + 14);
+    const tm = after.match(FIND_TIME_RE);
+    let time = null;
+    if (tm && Number(tm[1]) < 24 && Number(tm[2] || 0) < 60) time = `${String(tm[1]).padStart(2, '0')}:${String(tm[2] || '00').padStart(2, '0')}`;
+    const key = iso + (time || '');
+    if (!out.has(key)) out.set(key, { due: iso, time, label: m[0].trim() });
+  }
+  return [...out.values()].sort((a, b) => (a.due + (a.time || '')).localeCompare(b.due + (b.time || '')));
+}

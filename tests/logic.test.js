@@ -71,3 +71,26 @@ test('rangement automatique : départ sur les descriptions, puis apprentissage',
   learn(model, 'Préparer présentation Samsung', 'pfe', 3);
   assert.equal(predict(model, 'Relancer Samsung', projects).projectId, 'pfe');
 });
+
+import { findDates } from '../js/parser.js';
+import { mergeData } from '../js/merge.js';
+
+test('dates repérées dans un mail', () => {
+  const found = findDates('Rappel : rendu du livrable le 24/10 à 18h, réunion le 3 novembre. Ancien : 02/09.', T);
+  assert.deepEqual(found.map((f) => [f.due, f.time]), [['2026-10-24', '18:00'], ['2026-11-03', null]]);
+  assert.deepEqual(findDates('Merci pour hier', T), []);
+});
+
+test('fusion entre deux appareils', () => {
+  const a = { savedAt: 10, tasks: [{ id: 't1', title: 'A', updatedAt: 5 }, { id: 't2', title: 'local', updatedAt: 9 }], deleted: {}, log: [{ taskId: 't1', at: 1 }], shared: { name: 'A' } };
+  const b = { savedAt: 20, tasks: [{ id: 't1', title: 'A modifiée', updatedAt: 8 }, { id: 't3', title: 'distante', updatedAt: 3 }], deleted: { t2: 4 }, log: [{ taskId: 't1', at: 1 }, { taskId: 't3', at: 2 }], shared: { name: 'B' } };
+  const m = mergeData(a, b);
+  const titles = Object.fromEntries(m.tasks.map((t) => [t.id, t.title]));
+  assert.equal(titles.t1, 'A modifiée');
+  assert.equal(titles.t2, 'local'); // modifiée après la suppression : conservée
+  assert.equal(titles.t3, 'distante');
+  assert.equal(m.log.length, 2);
+  assert.equal(m.shared.name, 'B');
+  const c = mergeData(a, { ...b, deleted: { t2: Date.now() } });
+  assert.equal(c.tasks.find((t) => t.id === 't2'), undefined);
+});
