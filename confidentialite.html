@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confidentialité · Mon Organisateur</title>
+  <meta name="description" content="Règles de confidentialité de l'application Mon Organisateur.">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <style>
+    :root { --bg: #f5f6fa; --surface: #fff; --text: #151826; --muted: #5d6380; --accent: #5b5bf0; --border: #e3e6ef; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0f1117; --surface: #171a23; --text: #eceef5; --muted: #9298ad; --accent: #8b8bff; --border: #262a37; } }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 20px 64px; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    header img { border-radius: 10px; }
+    h1 { font-size: 28px; line-height: 1.2; margin: 0; }
+    h2 { font-size: 19px; margin: 32px 0 8px; }
+    p, li { color: var(--muted); }
+    strong { color: var(--text); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 4px 20px 16px; margin-top: 24px; }
+    a { color: var(--accent); }
+    .date { font-size: 14px; }
+  </style>
+</head>
+<body>
+<main>
+  <header><img src="icons/icon.svg" alt="" width="40" height="40"><h1>Règles de confidentialité</h1></header>
+  <p class="date">Application « Mon Organisateur » · dernière mise à jour : 19 octobre 2026</p>
+
+  <div class="card">
+    <h2>Qui utilise cette application</h2>
+    <p>Mon Organisateur est une application personnelle d'organisation (projets, tâches, agenda, mails). Elle est utilisée par son créateur pour son propre compte. Elle n'est ni vendue ni proposée au public.</p>
+
+    <h2>Où sont tes données</h2>
+    <ul>
+      <li><strong>Sur ton appareil</strong> : projets, tâches, agenda, idées, relances et réglages sont enregistrés dans le navigateur de chaque appareil.</li>
+      <li><strong>Dans ton Google Drive</strong>, si tu actives la synchronisation : une copie est rangée dans le dossier caché réservé à l'application (« appDataFolder »), visible uniquement par elle et par ton compte.</li>
+      <li><strong>Les mails</strong> restent sur l'appareil qui les lit. Ils ne sont pas copiés dans le Drive.</li>
+    </ul>
+
+    <h2>Données Google utilisées</h2>
+    <ul>
+      <li><strong>Google Drive</strong> (dossier de l'application uniquement) : synchroniser tes données entre tes appareils.</li>
+      <li><strong>Gmail</strong> (lecture seule) : afficher tes mails récents, repérer les dates et te proposer des tâches. L'application ne peut ni envoyer, ni modifier, ni supprimer de mail.</li>
+      <li><strong>Google Agenda</strong> : créer un événement de rappel, uniquement quand tu le demandes.</li>
+    </ul>
+    <p>L'utilisation et le transfert à toute autre application des informations reçues des API Google respectent les <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">règles relatives aux données utilisateur des services d'API Google</a>, y compris les exigences d'utilisation limitée (Limited Use).</p>
+
+    <h2>Assistant (Google Gemini)</h2>
+    <p>Quand tu poses une question à l'assistant, l'application envoie à Gemini les titres et dates de tes tâches, projets, événements et relances. Si tu l'autorises dans les réglages, elle envoie aussi l'expéditeur, l'objet et un court extrait (environ 200 caractères) de tes mails récents, jamais le mail complet. Ces envois passent par le serveur de l'application et ne servent qu'à te répondre.</p>
+
+    <h2>Serveur de l'application</h2>
+    <p>L'application est hébergée sur Vercel. Son serveur conserve la clé Gemini et le secret de connexion Google, relaie les demandes à l'assistant et renouvelle les autorisations Google. Il n'enregistre pas tes données.</p>
+
+    <h2>Partage</h2>
+    <p>Aucune donnée n'est vendue, utilisée pour de la publicité ou partagée avec des tiers, en dehors des services nécessaires au fonctionnement décrits ci-dessus (Google et Vercel).</p>
+
+    <h2>Contrôle et suppression</h2>
+    <ul>
+      <li>Réglages &gt; Données : exporter une sauvegarde ou tout effacer sur l'appareil.</li>
+      <li>Réglages &gt; Synchronisation : désactiver la synchronisation.</li>
+      <li>Retirer l'accès à tout moment depuis <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p><a href="mailto:mathieut157@gmail.com">mathieut157@gmail.com</a></p>
+  </div>
+  <p style="margin-top:24px"><a href="./">Retour à l'application</a></p>
+</main>
+</body>
+</html>

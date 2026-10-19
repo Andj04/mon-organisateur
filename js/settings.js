@@ -136,5 +136,6 @@ export function settingsView(theme) {
     </div>
   </section>
 
+  <p class="version"><a href="confidentialite.html" target="_blank" rel="noopener">Règles de confidentialité</a></p>
   <p class="version">Mon Organisateur · ${state.tasks.length} tâches · ${state.projects.length} projets · ${state.events.length} événements</p>`;
 }
