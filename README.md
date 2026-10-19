@@ -21,7 +21,7 @@ Toutes ces valeurs se règlent dans Vercel : **Project > Settings > Environment 
 |---|---|---|
 | `GEMINI_API_KEY` | Clé Gemini (Google AI Studio) | Oui, ne quitte jamais le serveur |
 | `APP_PASSWORD` | Mot de passe que tu choisis, à saisir dans Réglages > Assistant | Oui |
-| `GEMINI_MODEL` | Facultatif : modèle(s) Gemini, séparés par des virgules | Non |
+| `GEMINI_MODEL` | Facultatif : modèle(s) Gemini à essayer en premier, séparés par des virgules (sinon choix automatique parmi les modèles disponibles) | Non |
 | `GOOGLE_CLIENT_ID` | Identifiant OAuth Google (Drive, Gmail, Agenda) | Non |
 | `GOOGLE_CLIENT_SECRET` | Secret OAuth Google : connexion longue durée, sans reconnexion | Oui |
 | `MICROSOFT_CLIENT_ID` | Identifiant d'application Microsoft (Outlook) | Non |
@@ -32,7 +32,7 @@ Toutes ces valeurs se règlent dans Vercel : **Project > Settings > Environment 
 2. Dans Vercel, ajoute `GEMINI_API_KEY` et `APP_PASSWORD`.
 3. Dans l'application : Réglages > Assistant, saisis le mot de passe, puis **Tester**.
 
-Le serveur essaie plusieurs modèles si l'un a atteint son quota gratuit. Les quotas gratuits changent souvent : vérifie-les dans AI Studio.
+Le serveur demande à Google la liste des modèles disponibles pour ta clé, commence par le plus récent et passe au suivant si un modèle est retiré ou a atteint son quota gratuit. Les quotas gratuits changent souvent : vérifie-les dans AI Studio.
 
 ### 2. Google (synchro Drive, Gmail, Google Agenda)
 
