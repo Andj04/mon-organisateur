@@ -42,7 +42,7 @@ Le serveur essaie plusieurs modèles si l'un a atteint son quota gratuit. Les qu
 4. **Credentials > Create credentials > OAuth client ID** : type **Web application**. Dans **Authorized JavaScript origins**, ajoute l'adresse exacte de l'application (par exemple `https://mon-organisateur-ten.vercel.app`, et ton domaine personnel s'il y en a un).
 5. Dans **Authorized redirect URIs**, ajoute `https://<ton-adresse>/auth.html` pour chaque adresse de l'application.
 6. Copie le **Client ID** dans `GOOGLE_CLIENT_ID` et le **Client secret** dans `GOOGLE_CLIENT_SECRET`.
-7. Pour que la connexion ne expire pas au bout de 7 jours, passe le projet **En production** (Audience > Publish app).
+7. Pour que la connexion n'expire pas au bout de 7 jours, passe le projet **En production** (Audience > Publish app).
 
 À savoir : l'application n'étant pas vérifiée par Google, un écran « Google n'a pas validé cette application » s'affiche à la connexion (clique sur **Continuer**). Avec `GOOGLE_CLIENT_SECRET`, l'autorisation est renouvelée automatiquement par le serveur ; sans lui, elle dure une heure.
 
