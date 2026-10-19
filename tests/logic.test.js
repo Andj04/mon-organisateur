@@ -115,3 +115,17 @@ test('fusion : conversations, comptes mail et coffre', () => {
   assert.equal(m.vault.appPassword, 'nouveau');
   assert.deepEqual(m.vault.refresh, { 'gmail:moi@gmail.com': 'r1', drive: 'r2' });
 });
+
+import { migrate } from '../js/store.js';
+
+test('synchro avec des données d\'une ancienne version', () => {
+  const local = { savedAt: 1, shared: { name: 'Mathieu', prefs: { mailConsent: true, briefing: false } }, vault: { appPassword: 'p', refresh: {}, updatedAt: 1 } };
+  const ancienRemote = { savedAt: 9, shared: { name: 'Mathieu', lastReview: '2026-10-12' } }; // ni prefs ni coffre
+  const m = mergeData(local, ancienRemote);
+  assert.deepEqual(m.shared.prefs, { mailConsent: true, briefing: false });
+  assert.equal(m.shared.lastReview, '2026-10-12');
+  const complet = migrate({ ...m, shared: { name: 'x' }, vault: undefined, chats: undefined });
+  assert.equal(complet.shared.prefs.briefing, true); // valeur par défaut ajoutée
+  assert.deepEqual(complet.vault.refresh, {});
+  assert.deepEqual(complet.chats, []);
+});

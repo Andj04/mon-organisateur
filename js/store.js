@@ -47,9 +47,12 @@ let undoSnapshot = null;
 let saveTimer = null;
 let pendingSince = 0; // première modification non encore sauvegardée
 
-function migrate(s) {
+// Complète des données venant d'une version plus ancienne (sur cet appareil ou par la synchro).
+export function migrate(s) {
   const d = defaults();
   const out = { ...d, ...s };
+  // Une rubrique absente ou vide reprend sa valeur par défaut.
+  for (const k of Object.keys(d)) if (out[k] == null || (Array.isArray(d[k]) && !Array.isArray(out[k]))) out[k] = d[k];
   for (const k of ['model', 'stats', 'settings', 'sync', 'shared', 'mailProposals', 'briefing', 'vault']) out[k] = { ...d[k], ...(s[k] || {}) };
   out.shared.timetable = { ...d.shared.timetable, ...(s.shared?.timetable || {}) };
   out.shared.prefs = { ...d.shared.prefs, ...(s.shared?.prefs || {}) };

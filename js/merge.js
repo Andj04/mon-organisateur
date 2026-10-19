@@ -57,6 +57,14 @@ export function mergeData(a, b) {
 
   out.model = newer.model || a.model || b.model;
   out.stats = newer.stats || a.stats || b.stats;
-  out.shared = newer.shared || a.shared || b.shared;
+  // Réglages partagés : les plus récents l'emportent, sans perdre ce qu'une ancienne version ne connaissait pas.
+  const older = newer === a ? b : a;
+  const os = older.shared || {};
+  const ns = newer.shared || {};
+  out.shared = {
+    ...os, ...ns,
+    timetable: { ...(os.timetable || {}), ...(ns.timetable || {}) },
+    prefs: { ...(os.prefs || {}), ...(ns.prefs || {}) },
+  };
   return out;
 }

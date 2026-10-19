@@ -1,6 +1,6 @@
 // Synchronisation entre appareils via un dossier caché de ton Google Drive (appDataFolder).
 // Seul cet appareil et ton compte Google voient ce fichier.
-import { state, update, subscribe, SYNC_KEYS } from './store.js';
+import { state, update, subscribe, SYNC_KEYS, migrate } from './store.js';
 import { googleFetch, SCOPES, NeedAuthError, forgetGoogleToken } from './google.js';
 import { mergeData } from './merge.js';
 
@@ -60,7 +60,11 @@ async function run(interactive) {
     if (file) {
       const remote = await (await drive(`${API}/files/${file.id}?alt=media`, {}, interactive)).json();
       merged = mergeData(merged, remote);
-      update((s) => { for (const k of SYNC_KEYS) s[k] = merged[k]; s.savedAt = merged.savedAt; }, { silent: true });
+      update((s) => {
+        for (const k of SYNC_KEYS) s[k] = merged[k];
+        s.savedAt = merged.savedAt;
+        Object.assign(s, migrate(s)); // complète ce qui manquerait (données d'une ancienne version)
+      }, { silent: true });
     }
     await upload(file?.id, { ...payload(), savedAt: state.savedAt }, interactive);
     setStatus('ok');

@@ -125,7 +125,13 @@ function render({ transition = false } = {}) {
     const keep = f && view.contains(f) && f.matches('input[data-setting], input[data-search], input[data-shared-tt], textarea[name="q"]')
       ? { sel: f.matches('[data-search]') ? '[data-search]' : f.matches('[name="q"]') ? 'textarea[name="q"]' : `[data-setting="${f.dataset.setting}"],[data-shared-tt="${f.dataset.sharedTt}"]`, value: f.value, pos: f.selectionStart }
       : null;
-    view.innerHTML = renderView(r);
+    try {
+      view.innerHTML = renderView(r);
+    } catch (err) {
+      // Un écran en erreur ne doit pas bloquer le reste (synchro, sauvegarde).
+      console.error(err);
+      view.innerHTML = `<div class="empty">${icon('alert', 'empty-ic')}<h3>Cet écran n'a pas pu s'afficher</h3><p>${esc(err.message)}</p><button class="btn" data-action="go" data-route="aujourdhui">Revenir à Aujourd'hui</button></div>`;
+    }
     if (keep) {
       const el = view.querySelector(keep.sel);
       if (el) { el.value = keep.value; el.focus(); try { el.setSelectionRange(keep.pos, keep.pos); } catch { /* type sans curseur */ } }
