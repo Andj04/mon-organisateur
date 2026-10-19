@@ -1,5 +1,5 @@
 // Service worker : fonctionnement hors ligne, notifications et réveil périodique.
-const VERSION = 'v2.3.0';
+const VERSION = 'v2.4.0';
 const CACHE = 'mon-organisateur-' + VERSION;
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',

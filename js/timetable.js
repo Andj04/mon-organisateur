@@ -1,5 +1,5 @@
 // Import de l'emploi du temps : Excel (lu sur l'appareil) ou PDF (lu par Gemini), puis vérification avant validation.
-import { state, update, local } from './store.js';
+import { state, update, local, appPassword } from './store.js';
 import { esc, normalize } from './text.js';
 import { icon } from './icons.js';
 import { fmt, cap, todayISO } from './dates.js';
@@ -210,5 +210,5 @@ function bind(d) {
 }
 
 export function hasAssistantPassword() {
-  return Boolean(local.get('app-password'));
+  return Boolean(appPassword());
 }

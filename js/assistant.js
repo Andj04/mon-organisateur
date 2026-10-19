@@ -1,6 +1,6 @@
 // Assistant conversationnel (Gemini via le relais Vercel).
 // Seuls des titres, dates et noms sont envoyés : jamais le contenu des mails ni les notes.
-import { state, local, update, uid } from './store.js';
+import { state, local, update, uid, appPassword } from './store.js';
 import { esc } from './text.js';
 import { icon } from './icons.js';
 import { todayISO, addDays, fmt, diffDays, toISO, timeAgo, dueLabel, weekday } from './dates.js';
@@ -21,7 +21,7 @@ let pending = false;
 const PRIORITY = ['', 'basse', 'moyenne', 'haute'];
 
 export async function callAssistantApi(payload) {
-  const password = local.get('app-password');
+  const password = appPassword();
   if (!password) throw new Error('Saisis d\'abord le mot de passe de l\'assistant dans Réglages.');
   let res;
   try {
@@ -76,7 +76,7 @@ export function buildContext() {
     for (const f of follow) lines.push(`- ${f.kind === 'relancer' ? 'À relancer' : 'Attend une réponse de'} ${f.person} : ${f.subject} (depuis ${day(f.since)})`);
   }
   // Mails : seulement si tu l'as autorisé, et uniquement expéditeur, objet et date.
-  if (state.settings.mailConsent) {
+  if (state.shared.prefs.mailConsent) {
     const since = Date.now() - 7 * 86400000;
     const mails = allMails().filter((m) => m.date >= since && !m.promo).slice(0, 25);
     if (mails.length) {
@@ -172,7 +172,7 @@ const SUGGESTIONS = [
 ];
 
 export function assistantView() {
-  const configured = Boolean(local.get('app-password'));
+  const configured = Boolean(appPassword());
   const chat = currentChat();
   const messages = currentMessages();
   return `
@@ -187,11 +187,11 @@ export function assistantView() {
   <div class="chat" id="chat">
     ${messages.length ? '' : `
       <div class="chat-hello">${icon('sparkles', 'empty-ic')}<h3>Pose-moi une question</h3>
-      <p>Je connais tes projets, tâches, relances et ton agenda, et je peux ajouter des tâches ou des événements pour toi (« ajoute réunion du bureau jeudi à 18h »).${state.settings.mailConsent ? ' Je vois aussi l\'expéditeur et l\'objet de tes mails récents.' : ' Je ne lis pas tes mails (tu peux l\'autoriser dans Réglages).'}</p></div>`}
+      <p>Je connais tes projets, tâches, relances et ton agenda, et je peux ajouter des tâches ou des événements pour toi (« ajoute réunion du bureau jeudi à 18h »).${state.shared.prefs.mailConsent ? ' Je vois aussi l\'expéditeur et l\'objet de tes mails récents.' : ' Je ne lis pas tes mails (tu peux l\'autoriser dans Réglages).'}</p></div>`}
     ${messages.map((m, i) => `<div class="bubble ${m.role}">${m.role === 'assistant' ? formatAnswer(m.text) : `<p>${esc(m.text)}</p>`}</div>${actionCards(m, chat?.id, i)}`).join('')}
     ${pending ? '<div class="bubble assistant typing"><i></i><i></i><i></i></div>' : ''}
   </div>
-  <div class="chat-suggestions chips scroll-x">${state.settings.mailConsent && state.accounts.length ? `<button class="chip on" data-action="analyze-mails">${icon('mail')}Trouver des tâches dans mes mails</button>` : ''}${SUGGESTIONS.map((s) => `<button class="chip" data-action="chat-suggest">${esc(s)}</button>`).join('')}</div>
+  <div class="chat-suggestions chips scroll-x">${state.shared.prefs.mailConsent && state.accounts.length ? `<button class="chip on" data-action="analyze-mails">${icon('mail')}Trouver des tâches dans mes mails</button>` : ''}${SUGGESTIONS.map((s) => `<button class="chip" data-action="chat-suggest">${esc(s)}</button>`).join('')}</div>
   <form class="chat-input card" data-form="chat">
     <textarea name="q" rows="1" placeholder="Ta question…" enterkeyhint="send" ${pending ? 'disabled' : ''}></textarea>
     <button class="icon-btn send" type="submit" aria-label="Envoyer" ${pending ? 'disabled' : ''}>${icon('next')}</button>
@@ -213,7 +213,7 @@ function addMessage(msg) {
     c.updatedAt = Date.now();
     s.chats.sort((a, b) => b.updatedAt - a.updatedAt);
     s.chats = s.chats.slice(0, MAX_CHATS);
-  }, { silent: true });
+  });
 }
 
 async function ask(question) {
@@ -283,7 +283,7 @@ function openHistory() {
         closeSheet(() => update(() => {}, { silent: true }));
       } else if (del) {
         const id = del.dataset.chatDel;
-        update((s) => { s.chats = s.chats.filter((c) => c.id !== id); }, { silent: true });
+        update((s) => { s.chats = s.chats.filter((c) => c.id !== id); s.deleted[id] = Date.now(); });
         if (currentId === id) currentId = null;
         box.innerHTML = historyHtml();
       } else if (e.target.closest('[data-chat-wipe]')) {
@@ -291,7 +291,11 @@ function openHistory() {
           title: 'Effacer tout l\'historique ?',
           text: 'Les conversations enregistrées sur cet appareil seront supprimées.',
           confirm: 'Tout effacer',
-          onConfirm: () => { currentId = null; update((s) => { s.chats = []; }, { silent: true }); toast('Historique effacé'); },
+          onConfirm: () => {
+            currentId = null;
+            update((s) => { for (const c of s.chats) s.deleted[c.id] = Date.now(); s.chats = []; });
+            toast('Historique effacé');
+          },
         });
       }
     });

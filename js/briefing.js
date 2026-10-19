@@ -1,5 +1,5 @@
 // Résumé du matin : rédigé une fois par jour par l'assistant, à partir des mêmes données que le chat.
-import { state, update, local } from './store.js';
+import { state, update, local, appPassword } from './store.js';
 import { icon } from './icons.js';
 import { esc } from './text.js';
 import { todayISO } from './dates.js';
@@ -11,7 +11,7 @@ const PROMPT = `Rédige mon résumé du matin, en français, en 120 mots maximum
 **À surveiller** : ce qui est en retard, les projets négligés et les relances du jour.
 Termine par une phrase d'encouragement très courte. Si une partie est vide, dis-le en quelques mots. N'invente rien. N'utilise pas de tiret long.`;
 
-const enabled = () => state.settings.briefing && Boolean(local.get('app-password'));
+const enabled = () => state.shared.prefs.briefing && Boolean(appPassword());
 
 export async function makeBriefing({ force = false } = {}) {
   const b = state.briefing;

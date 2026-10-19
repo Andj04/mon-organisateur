@@ -9,6 +9,8 @@ const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 let running = null;
 let timer = null;
+let onSynced = () => {};
+export function afterSync(fn) { onSynced = fn; }
 
 const drive = (url, opts, interactive) =>
   googleFetch('drive', SCOPES.drive, state.settings.driveEmail, url, opts, interactive);
@@ -62,6 +64,7 @@ async function run(interactive) {
     }
     await upload(file?.id, { ...payload(), savedAt: state.savedAt }, interactive);
     setStatus('ok');
+    onSynced();
     return true;
   } catch (e) {
     if (e.needAuth) setStatus('reconnect');
@@ -91,7 +94,8 @@ export function startAutoSync() {
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncNow(); });
   window.addEventListener('online', () => syncNow());
-  setInterval(() => { if (!document.hidden) syncNow(); }, 5 * 60 * 1000);
+  // Toutes les minutes tant que l'application est ouverte : les changements faits ailleurs arrivent vite.
+  setInterval(() => { if (!document.hidden) syncNow(); }, 60 * 1000);
   syncNow();
 }
 

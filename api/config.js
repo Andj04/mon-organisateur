@@ -3,6 +3,7 @@ export default function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.status(200).json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+    googleOffline: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     microsoftClientId: process.env.MICROSOFT_CLIENT_ID || '',
     gemini: Boolean(process.env.GEMINI_API_KEY),
   });

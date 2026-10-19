@@ -1,5 +1,5 @@
 // Point d'entrée : navigation, rendu des écrans et gestion des clics.
-import { state, initStore, subscribe, update, replaceState, resetState, flush, local } from './store.js';
+import { state, initStore, subscribe, update, replaceState, resetState, flush, local, setAppPassword } from './store.js';
 import { icon } from './icons.js';
 import { esc } from './text.js';
 import { todayISO } from './dates.js';
@@ -16,7 +16,7 @@ import { getTask, activeProjects, completeTask, reopenTask, createTask, rollDail
 import { parseQuick } from './parser.js';
 import { toast } from './toast.js';
 import { startNotifier, enableNotifications, disableNotifications, testNotification, updateBadge } from './notify.js';
-import { syncNow, startAutoSync, disconnectSync } from './sync.js';
+import { syncNow, startAutoSync, disconnectSync, afterSync } from './sync.js';
 import { preloadGoogle } from './google.js';
 import { makeBriefing, briefingHandlers } from './briefing.js';
 import { analyzeMails, mailTasksHandlers, proposalsCard } from './mailtasks.js';
@@ -266,14 +266,14 @@ async function onChange(e) {
   }
   if (el.dataset.toggleSetting) {
     const key = el.dataset.toggleSetting;
-    update((s) => { s.settings[key] = el.checked; }, { silent: true });
+    update((s) => { s.shared.prefs[key] = el.checked; });
     if (key === 'briefing' && el.checked) makeBriefing();
     if (key === 'mailConsent' && el.checked) toast('Autorisé : utilise « Proposer des tâches » dans Mails');
   }
   if (el.dataset.local === 'app-password' && el.value) {
-    local.set('app-password', el.value);
+    setAppPassword(el.value);
     el.value = '';
-    toast('Mot de passe enregistré sur cet appareil');
+    toast('Mot de passe enregistré');
     render();
   }
   if (el.dataset.action === 'import' && el.files[0]) {
@@ -385,6 +385,8 @@ async function start() {
   if (ajout) { history.replaceState(null, '', location.pathname + location.hash); openQuickAdd(ajout === 'idee' ? { mode: 'idee' } : {}); }
   preloadGoogle();
   startNotifier();
+  // Après chaque synchro, les comptes mail arrivés d'un autre appareil sont lus aussitôt.
+  afterSync(() => refreshAll(false));
   startAutoSync();
   refreshMailsThenAnalyze();
   makeBriefing();

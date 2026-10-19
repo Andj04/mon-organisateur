@@ -1,6 +1,6 @@
 // Mails en lecture seule : Gmail et Outlook. Les mails restent sur cet appareil et ne sont jamais envoyés à l'IA.
 import { state, update, uid } from './store.js';
-import { googleFetch, SCOPES, forgetGoogleToken } from './google.js';
+import { googleFetch, SCOPES, forgetGoogleToken, renameGoogleKey } from './google.js';
 import { connectMicrosoft, microsoftToken, forgetMicrosoft } from './microsoft.js';
 import { findDates } from './parser.js';
 import { esc } from './text.js';
@@ -112,11 +112,8 @@ async function addGmail() {
   const tmpKey = 'gmail:nouveau';
   const res = await googleFetch(tmpKey, SCOPES.gmail, '', 'https://gmail.googleapis.com/gmail/v1/users/me/profile', {}, true);
   const email = (await res.json()).emailAddress.toLowerCase();
-  // Le jeton obtenu est rangé sous le nom du compte.
-  const all = JSON.parse(localStorage.getItem('mo-gtokens') || '{}');
-  all['gmail:' + email] = all[tmpKey];
-  delete all[tmpKey];
-  localStorage.setItem('mo-gtokens', JSON.stringify(all));
+  // L'autorisation obtenue est rangée sous le nom du compte.
+  renameGoogleKey(tmpKey, 'gmail:' + email);
   return email;
 }
 
@@ -126,7 +123,7 @@ async function addAccount(type) {
     if (state.accounts.some((a) => a.type === type && a.email === email)) {
       toast(`${email} est déjà connecté`);
     } else {
-      update((s) => { s.accounts.push({ id: uid(), type, email }); }, { silent: true });
+      update((s) => { s.accounts.push({ id: uid(), type, email, createdAt: Date.now() }); });
       toast(`${email} connecté`);
     }
     const acc = state.accounts.find((a) => a.type === type && a.email === email);
@@ -147,7 +144,7 @@ function removeAccount(id) {
   const acc = state.accounts.find((a) => a.id === id);
   if (!acc) return;
   if (acc.type === 'gmail') forgetGoogleToken('gmail:' + acc.email); else forgetMicrosoft(acc.email);
-  update((s) => { s.accounts = s.accounts.filter((a) => a.id !== id); delete s.mails[id]; }, { silent: true });
+  update((s) => { s.accounts = s.accounts.filter((a) => a.id !== id); delete s.mails[id]; s.deleted[id] = Date.now(); });
   toast('Compte déconnecté');
 }
 
@@ -195,7 +192,7 @@ export function mailsView() {
   return `
   <div class="page-head">
     <h1>Mails</h1>
-    ${accounts.length ? `<div class="row-gap">${state.settings.mailConsent ? `<button class="btn" data-action="analyze-mails">${icon('sparkles')}<span>Proposer des tâches</span></button>` : ''}<button class="btn" data-action="mail-refresh">${icon('repeat')}<span>Actualiser</span></button></div>` : ''}
+    ${accounts.length ? `<div class="row-gap">${state.shared.prefs.mailConsent ? `<button class="btn" data-action="analyze-mails">${icon('sparkles')}<span>Proposer des tâches</span></button>` : ''}<button class="btn" data-action="mail-refresh">${icon('repeat')}<span>Actualiser</span></button></div>` : ''}
   </div>
   ${extraTop()}
   <section class="group">

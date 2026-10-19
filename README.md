@@ -23,6 +23,7 @@ Toutes ces valeurs se règlent dans Vercel : **Project > Settings > Environment 
 | `APP_PASSWORD` | Mot de passe que tu choisis, à saisir dans Réglages > Assistant | Oui |
 | `GEMINI_MODEL` | Facultatif : modèle(s) Gemini, séparés par des virgules | Non |
 | `GOOGLE_CLIENT_ID` | Identifiant OAuth Google (Drive, Gmail, Agenda) | Non |
+| `GOOGLE_CLIENT_SECRET` | Secret OAuth Google : connexion longue durée, sans reconnexion | Oui |
 | `MICROSOFT_CLIENT_ID` | Identifiant d'application Microsoft (Outlook) | Non |
 
 ### 1. Assistant Gemini
@@ -39,9 +40,15 @@ Le serveur essaie plusieurs modèles si l'un a atteint son quota gratuit. Les qu
 2. **APIs & Services > Library** : active **Google Drive API**, **Gmail API** et **Google Calendar API**.
 3. **OAuth consent screen** : type **External**, statut **Testing**. Dans **Test users**, ajoute `mathieut157@gmail.com` et `traoreandjou@gmail.com`.
 4. **Credentials > Create credentials > OAuth client ID** : type **Web application**. Dans **Authorized JavaScript origins**, ajoute l'adresse exacte de l'application (par exemple `https://mon-organisateur-ten.vercel.app`, et ton domaine personnel s'il y en a un).
-5. Copie le **Client ID** dans la variable Vercel `GOOGLE_CLIENT_ID`.
+5. Dans **Authorized redirect URIs**, ajoute `https://<ton-adresse>/auth.html` pour chaque adresse de l'application.
+6. Copie le **Client ID** dans `GOOGLE_CLIENT_ID` et le **Client secret** dans `GOOGLE_CLIENT_SECRET`.
+7. Pour que la connexion ne expire pas au bout de 7 jours, passe le projet **En production** (Audience > Publish app).
 
-À savoir : l'application n'étant pas vérifiée par Google, un écran « Google n'a pas validé cette application » s'affiche à la connexion (clique sur **Continuer**). Les connexions durent environ une heure ; ensuite un bouton **Reconnecter** apparaît.
+À savoir : l'application n'étant pas vérifiée par Google, un écran « Google n'a pas validé cette application » s'affiche à la connexion (clique sur **Continuer**). Avec `GOOGLE_CLIENT_SECRET`, l'autorisation est renouvelée automatiquement par le serveur ; sans lui, elle dure une heure.
+
+### Nouvel appareil
+
+Ouvre l'application, Réglages > Synchronisation > **Activer avec Google Drive**. Comptes mail, mot de passe de l'assistant, réglages et historique de l'assistant arrivent automatiquement.
 
 ### 3. Outlook (adresse de l'école)
 
@@ -56,7 +63,7 @@ Ton école peut bloquer l'accès des applications non approuvées. Dans ce cas, 
 ## Données et confidentialité
 
 - Les données sont sur l'appareil (IndexedDB). Avec la synchro, une copie est rangée dans un dossier caché de ton Google Drive.
-- Les mails restent sur l'appareil, ne sont pas synchronisés et ne sont jamais envoyés à l'assistant.
+- Les mails restent sur chaque appareil (seuls les comptes et leurs autorisations sont synchronisés, dans le dossier caché de ton Drive). L'assistant ne reçoit que l'expéditeur, l'objet et un court extrait, et seulement si tu l'autorises.
 - La clé Gemini reste sur le serveur Vercel.
 
 ## Développement

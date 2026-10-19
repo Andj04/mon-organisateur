@@ -1,5 +1,5 @@
 // Écran Réglages : profil, apparence, synchronisation, assistant, emploi du temps, notifications, données.
-import { state, local } from './store.js';
+import { state, local, appPassword } from './store.js';
 import { esc } from './text.js';
 import { icon } from './icons.js';
 import { timeAgo } from './dates.js';
@@ -28,7 +28,7 @@ function syncCard() {
         ${on && s.status !== 'reconnect' ? `<button class="btn" data-action="sync-now">${icon('repeat')}Synchroniser maintenant</button>` : ''}
         ${on ? '<button class="btn ghost danger" data-action="sync-off">Désactiver</button>' : ''}
       </div>
-      <p class="fine">${icon('shield')}Tes données sont rangées dans un dossier caché de ton Drive, visible uniquement par cette application. Active la synchro sur chaque appareil avec le même compte.</p>
+      <p class="fine">${icon('shield')}Tes données sont rangées dans un dossier caché de ton Drive, visible uniquement par cette application. Sur un nouvel appareil, active simplement la synchro avec le même compte : comptes mail, mot de passe de l'assistant, réglages et historique arrivent tout seuls.</p>
     </div>
   </section>`;
 }
@@ -36,7 +36,7 @@ function syncCard() {
 const toggle = (key, title, text) => `
   <div class="setting-row">
     <div><div><strong>${title}</strong><p>${text}</p></div></div>
-    <label class="switch"><input type="checkbox" data-toggle-setting="${key}" ${state.settings[key] ? 'checked' : ''}><i></i></label>
+    <label class="switch"><input type="checkbox" data-toggle-setting="${key}" ${state.shared.prefs[key] ? 'checked' : ''}><i></i></label>
   </div>`;
 
 export function settingsView(theme) {
@@ -52,7 +52,7 @@ export function settingsView(theme) {
   else notifStatus = 'Désactivées.';
 
   const themeBtn = (k, label, ic) => `<button class="${theme === k ? 'on' : ''}" data-action="set-theme" data-key="${k}">${icon(ic)}${label}</button>`;
-  const hasPass = Boolean(local.get('app-password'));
+  const hasPass = Boolean(appPassword());
 
   return `
   <div class="page-head"><h1>Réglages</h1></div>
@@ -78,12 +78,12 @@ export function settingsView(theme) {
     <h3 class="group-title">Assistant</h3>
     <div class="card form-card">
       <label class="field"><span>Mot de passe de l'assistant</span>
-        <input type="password" data-local="app-password" placeholder="${hasPass ? 'Enregistré sur cet appareil' : 'Celui choisi dans Vercel (APP_PASSWORD)'}" autocomplete="new-password"></label>
+        <input type="password" data-local="app-password" placeholder="${hasPass ? 'Enregistré (synchronisé entre tes appareils)' : 'Celui choisi dans Vercel (APP_PASSWORD)'}" autocomplete="new-password"></label>
       <div class="row-gap wrap">${hasPass ? `<button class="btn" data-action="test-assistant">${icon('sparkles')}Tester</button>` : ''}</div>
       ${toggle('briefing', 'Résumé du matin', 'Chaque jour, une carte en haut de la page Aujourd\'hui : cours, priorités, retards et relances.')}
       ${toggle('mailConsent', 'Autoriser l\'assistant à lire mes mails', 'Uniquement l\'expéditeur, l\'objet, la date et les 200 premiers caractères, pour te proposer des tâches. Le mail complet n\'est jamais envoyé.')}
-      ${state.settings.mailConsent ? toggle('autoMailTasks', 'Analyser automatiquement les nouveaux mails', 'Au plus toutes les 2 heures, pour économiser ton quota gratuit de Gemini.') : ''}
-      <p class="fine">${icon('shield')}La clé Gemini est rangée sur le serveur Vercel, jamais dans l'application. Ce mot de passe empêche d'autres personnes de l'utiliser. Il reste sur cet appareil.</p>
+      ${state.shared.prefs.mailConsent ? toggle('autoMailTasks', 'Analyser automatiquement les nouveaux mails', 'Au plus toutes les 2 heures, pour économiser ton quota gratuit de Gemini.') : ''}
+      <p class="fine">${icon('shield')}La clé Gemini est rangée sur le serveur Vercel, jamais dans l'application. Ce mot de passe empêche d'autres personnes de l'utiliser. Il est rangé dans ton Drive avec la synchronisation, pour ne pas avoir à le ressaisir sur ton téléphone.</p>
     </div>
   </section>
 

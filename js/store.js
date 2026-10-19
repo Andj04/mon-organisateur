@@ -4,7 +4,8 @@ import { load, save } from './db.js';
 export const SCHEMA_VERSION = 2;
 
 // Données partagées entre appareils (synchronisées avec Google Drive).
-export const SYNC_KEYS = ['projects', 'tasks', 'events', 'ideas', 'followups', 'log', 'model', 'stats', 'deleted', 'shared'];
+// Les mails eux-mêmes restent sur chaque appareil : seuls les comptes et leurs autorisations circulent.
+export const SYNC_KEYS = ['projects', 'tasks', 'events', 'ideas', 'followups', 'log', 'model', 'stats', 'deleted', 'shared', 'chats', 'accounts', 'vault'];
 
 const defaults = () => ({
   version: SCHEMA_VERSION,
@@ -18,15 +19,21 @@ const defaults = () => ({
   model: { words: {}, docs: {} },
   stats: { autoKept: 0, autoFixed: 0 },
   deleted: {}, // éléments supprimés : { id: date }, pour que la suppression se propage aux autres appareils
-  shared: { name: '', lastReview: null, timetable: { filiere: 'Conseil', option: 'GI', groupe: '7' } },
+  shared: {
+    name: '', lastReview: null, timetable: { filiere: 'Conseil', option: 'GI', groupe: '7' },
+    prefs: {
+      mailConsent: false, // autorise l'assistant à lire objet, expéditeur et court extrait des mails
+      autoMailTasks: true, // analyse automatique des nouveaux mails (si autorisé)
+      briefing: true, // résumé du matin
+    },
+  },
+  // Coffre synchronisé dans ton Drive : mot de passe de l'assistant et autorisations Google longue durée.
+  vault: { appPassword: '', refresh: {}, updatedAt: 0 },
   // Propre à cet appareil :
   settings: {
     notifications: false, lastSummary: null, syncEnabled: false, driveEmail: '',
-    mailConsent: false, // autorise l'assistant à lire objet, expéditeur et court extrait des mails
-    autoMailTasks: true, // analyse automatique des nouveaux mails (si autorisé)
-    briefing: true, // résumé du matin
   },
-  accounts: [], // comptes mail : { id, type: 'gmail'|'outlook', email }
+  accounts: [], // comptes mail : { id, type: 'gmail'|'outlook', email, createdAt }
   mails: {}, // cache local : { [accountId]: { fetchedAt, items: [] } }
   sync: { lastSync: null, status: 'off', error: '' },
   mailProposals: { items: [], analyzed: {}, lastRun: null, running: false, error: '' }, // tâches proposées depuis les mails
@@ -43,8 +50,13 @@ let pendingSince = 0; // première modification non encore sauvegardée
 function migrate(s) {
   const d = defaults();
   const out = { ...d, ...s };
-  for (const k of ['model', 'stats', 'settings', 'sync', 'shared', 'mailProposals', 'briefing']) out[k] = { ...d[k], ...(s[k] || {}) };
+  for (const k of ['model', 'stats', 'settings', 'sync', 'shared', 'mailProposals', 'briefing', 'vault']) out[k] = { ...d[k], ...(s[k] || {}) };
   out.shared.timetable = { ...d.shared.timetable, ...(s.shared?.timetable || {}) };
+  out.shared.prefs = { ...d.shared.prefs, ...(s.shared?.prefs || {}) };
+  // Version précédente : ces réglages étaient propres à l'appareil.
+  for (const k of Object.keys(d.shared.prefs)) if (s.settings && k in s.settings && !s.shared?.prefs) out.shared.prefs[k] = s.settings[k];
+  out.vault.refresh = { ...(s.vault?.refresh || {}) };
+  out.accounts = (out.accounts || []).map((a) => ({ createdAt: 1, ...a }));
   // Version 1 : le prénom était dans les réglages locaux.
   if (s.settings?.name && !s.shared?.name) out.shared.name = s.settings.name;
   // Un chargement interrompu ne doit pas rester bloqué au redémarrage.
@@ -118,7 +130,23 @@ export const uid = () => (crypto.randomUUID
   ? crypto.randomUUID()
   : Date.now().toString(36) + Math.random().toString(36).slice(2));
 
-// Préférences propres à l'appareil, hors base (thème, mot de passe de l'assistant).
+// Mot de passe de l'assistant : gardé sur l'appareil et dans le coffre synchronisé.
+export const appPassword = () => local.get('app-password') || state.vault.appPassword || '';
+export function setAppPassword(value) {
+  local.set('app-password', value);
+  update((s) => { s.vault.appPassword = value; s.vault.updatedAt = Date.now(); });
+}
+
+// Autorisations Google longue durée, synchronisées entre appareils.
+export const getRefresh = (key) => state.vault.refresh[key] || null;
+export function setRefresh(key, token) {
+  update((s) => {
+    if (token) s.vault.refresh[key] = token; else delete s.vault.refresh[key];
+    s.vault.updatedAt = Date.now();
+  });
+}
+
+// Préférences propres à l'appareil, hors base (thème).
 export const local = {
   get(key, fallback = '') {
     try { return localStorage.getItem('mo-' + key) ?? fallback; } catch { return fallback; }

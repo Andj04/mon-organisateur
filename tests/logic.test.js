@@ -94,3 +94,24 @@ test('fusion entre deux appareils', () => {
   const c = mergeData(a, { ...b, deleted: { t2: Date.now() } });
   assert.equal(c.tasks.find((t) => t.id === 't2'), undefined);
 });
+
+test('fusion : conversations, comptes mail et coffre', () => {
+  const a = {
+    savedAt: 5,
+    chats: Array.from({ length: 8 }, (_, i) => ({ id: 'a' + i, updatedAt: i })),
+    accounts: [{ id: 'x1', type: 'gmail', email: 'moi@gmail.com', createdAt: 1 }],
+    vault: { appPassword: 'ancien', refresh: { 'gmail:moi@gmail.com': 'r1' }, updatedAt: 1 },
+  };
+  const b = {
+    savedAt: 6,
+    chats: Array.from({ length: 5 }, (_, i) => ({ id: 'b' + i, updatedAt: 100 + i })),
+    accounts: [{ id: 'x2', type: 'gmail', email: 'moi@gmail.com', createdAt: 2 }],
+    vault: { appPassword: 'nouveau', refresh: { drive: 'r2' }, updatedAt: 9 },
+  };
+  const m = mergeData(a, b);
+  assert.equal(m.chats.length, 10);
+  assert.equal(m.chats[0].id, 'b4');
+  assert.equal(m.accounts.length, 1);
+  assert.equal(m.vault.appPassword, 'nouveau');
+  assert.deepEqual(m.vault.refresh, { 'gmail:moi@gmail.com': 'r1', drive: 'r2' });
+});

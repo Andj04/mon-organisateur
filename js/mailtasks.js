@@ -1,6 +1,6 @@
 // L'assistant repère dans tes mails les actions à faire et te propose des tâches, que tu valides.
 // Ne sont envoyés que l'expéditeur, l'objet, la date et un court extrait de chaque mail.
-import { state, update, local } from './store.js';
+import { state, update, local, appPassword } from './store.js';
 import { esc } from './text.js';
 import { icon } from './icons.js';
 import { todayISO, fmt, toISO, dueLabel } from './dates.js';
@@ -15,7 +15,7 @@ const MAX_MAILS = 20;
 const SNIPPET = 200;
 const AUTO_INTERVAL = 2 * 60 * 60 * 1000; // analyse automatique au plus toutes les 2 heures
 
-export const canReadMails = () => state.settings.mailConsent && Boolean(local.get('app-password'));
+export const canReadMails = () => state.shared.prefs.mailConsent && Boolean(appPassword());
 
 function eligibleMails() {
   const since = Date.now() - 7 * 86400000;
@@ -50,7 +50,7 @@ ${list}`;
 export async function analyzeMails({ auto = false } = {}) {
   if (!canReadMails() || state.mailProposals.running) return 0;
   const mp = state.mailProposals;
-  if (auto && (!state.settings.autoMailTasks || (mp.lastRun && Date.now() - mp.lastRun < AUTO_INTERVAL))) return 0;
+  if (auto && (!state.shared.prefs.autoMailTasks || (mp.lastRun && Date.now() - mp.lastRun < AUTO_INTERVAL))) return 0;
   const mails = eligibleMails();
   if (!mails.length) {
     if (!auto) toast('Aucun nouveau mail à analyser');
