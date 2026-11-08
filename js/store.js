@@ -1,5 +1,6 @@
 // État de l'application : chargé depuis l'appareil, sauvegardé à chaque modification.
 import { load, save } from './db.js';
+import { fixMailLink } from './text.js';
 
 export const SCHEMA_VERSION = 2;
 
@@ -62,6 +63,10 @@ export function migrate(s) {
   out.accounts = (out.accounts || []).map((a) => ({ createdAt: 1, ...a }));
   // Version 1 : le prénom était dans les réglages locaux.
   if (s.settings?.name && !s.shared?.name) out.shared.name = s.settings.name;
+  // Anciens liens Gmail mal formés (tâches, événements, relances, mails en cache).
+  for (const k of ['tasks', 'events', 'followups']) for (const x of out[k]) if (x.link) x.link = fixMailLink(x.link);
+  for (const box of Object.values(out.mails || {})) for (const m of box.items || []) if (m.link) m.link = fixMailLink(m.link);
+  for (const p of out.mailProposals.items || []) if (p.link) p.link = fixMailLink(p.link);
   // Un chargement interrompu ne doit pas rester bloqué au redémarrage.
   out.mailProposals.running = false;
   out.briefing.loading = false;

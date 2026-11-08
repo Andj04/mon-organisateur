@@ -15,6 +15,16 @@ export function tokens(s) {
     .map((t) => (t.length > 4 && t.endsWith('s') ? t.slice(0, -1) : t));
 }
 
+// Lien vers un fil Gmail dans le bon compte. Corrige aussi l'ancienne forme (/mail/u/adresse%40.../),
+// que Gmail ne reconnaissait pas.
+export const gmailLink = (email, threadId) =>
+  `https://mail.google.com/mail/?authuser=${encodeURIComponent(email)}#all/${threadId}`;
+
+export function fixMailLink(url) {
+  const m = typeof url === 'string' && url.match(/^https:\/\/mail\.google\.com\/mail\/u\/([^/]*%40[^/]*)\/#all\/([\w-]+)$/);
+  return m ? gmailLink(decodeURIComponent(m[1]), m[2]) : url;
+}
+
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));

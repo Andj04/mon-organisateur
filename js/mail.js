@@ -3,7 +3,7 @@ import { state, update, uid } from './store.js';
 import { googleFetch, SCOPES, forgetGoogleToken, renameGoogleKey } from './google.js';
 import { connectMicrosoft, microsoftToken, forgetMicrosoft } from './microsoft.js';
 import { findDates } from './parser.js';
-import { esc } from './text.js';
+import { esc, gmailLink } from './text.js';
 import { icon } from './icons.js';
 import { todayISO, dueLabel, timeAgo } from './dates.js';
 import { toast } from './toast.js';
@@ -44,7 +44,7 @@ async function fetchGmail(acc, interactive) {
     return enrich({
       id: m.id, accountId: acc.id, subject: h.subject || '(sans objet)', fromName: from.name, fromEmail: from.email,
       date: Number(m.internalDate), snippet: decodeHtml(m.snippet),
-      link: `https://mail.google.com/mail/u/${encodeURIComponent(acc.email)}/#all/${m.threadId}`,
+      link: gmailLink(acc.email, m.threadId),
       unread: labels.includes('UNREAD'), flagged: labels.includes('IMPORTANT') || labels.includes('STARRED'),
       promo: labels.some((l) => ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(l)),
     });

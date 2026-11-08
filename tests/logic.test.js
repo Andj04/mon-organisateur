@@ -129,3 +129,13 @@ test('synchro avec des données d\'une ancienne version', () => {
   assert.deepEqual(complet.vault.refresh, {});
   assert.deepEqual(complet.chats, []);
 });
+
+import { fixMailLink, gmailLink } from '../js/text.js';
+
+test('liens Gmail', () => {
+  assert.equal(gmailLink('traoreandjou@gmail.com', '19a2b'), 'https://mail.google.com/mail/?authuser=traoreandjou%40gmail.com#all/19a2b');
+  assert.equal(fixMailLink('https://mail.google.com/mail/u/traoreandjou%40gmail.com/#all/19a2b'), 'https://mail.google.com/mail/?authuser=traoreandjou%40gmail.com#all/19a2b');
+  assert.equal(fixMailLink('https://outlook.office.com/x'), 'https://outlook.office.com/x');
+  const s = migrate({ tasks: [{ id: 't', link: 'https://mail.google.com/mail/u/a%40b.com/#all/f1' }] });
+  assert.equal(s.tasks[0].link, 'https://mail.google.com/mail/?authuser=a%40b.com#all/f1');
+});
