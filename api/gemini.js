@@ -1,6 +1,7 @@
 // Relais vers Gemini. La clé reste sur le serveur Vercel (variable GEMINI_API_KEY) et n'est jamais envoyée au navigateur.
 // L'accès est protégé par un mot de passe (variable APP_PASSWORD) que tu saisis une fois dans l'application.
-export const config = { maxDuration: 60 };
+// Durée maximale côté Vercel (voir aussi vercel.json). L'application garde sa propre marge plus bas.
+export const config = { maxDuration: 120 };
 
 // Modèles connus en dernier recours. Les noms changent souvent : le serveur demande donc aussi à Google
 // la liste des modèles réellement disponibles pour ta clé.
@@ -16,7 +17,7 @@ const versionOf = (name) => Number((name.match(/gemini-(\d+(?:\.\d+)?)/) || [])[
 async function discoverModels(key) {
   if (discovered && Date.now() - discovered.at < 60 * 60 * 1000) return discovered.list;
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(8000) });
     const data = await res.json();
     const list = (data.models || [])
       .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
@@ -47,18 +48,61 @@ Règles :
 - Si la case précise une heure différente du créneau (ex. "9h - 10h"), utilise cette heure.
 - N'invente rien. Ignore les cases vides.`;
 
-async function callGemini(key, body) {
-  const failures = [];
-  for (const model of await models(key)) {
+const ATTEMPT_MS = 45000; // délai maximal pour un modèle
+const BUDGET_MS = 100000; // délai total, sous la limite Vercel
+
+// Les modèles récents « réfléchissent » longtemps par défaut : on demande une réflexion courte,
+// largement suffisante pour organiser des tâches, et bien plus rapide.
+function thinkingFor(model) {
+  const v = versionOf(model);
+  if (v >= 3) return { thinkingLevel: 'low' };
+  if (v >= 2.5 && model.includes('flash')) return { thinkingBudget: 0 };
+  return null;
+}
+
+async function attempt(key, model, body, withThinking) {
+  const thinking = withThinking ? thinkingFor(model) : null;
+  const payload = thinking
+    ? { ...body, generationConfig: { ...(body.generationConfig || {}), thinkingConfig: thinking } }
+    : body;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ATTEMPT_MS);
+  try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
     });
     const data = await res.json().catch(() => ({}));
+    return { res, data, thinking };
+  } catch (e) {
+    if (e.name === 'AbortError') return { timeout: true };
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callGemini(key, body) {
+  const started = Date.now();
+  const failures = [];
+  for (const model of await models(key)) {
+    // Plus assez de temps pour un nouvel essai : on s'arrête avant que Vercel coupe.
+    if (Date.now() - started > BUDGET_MS - 20000) break;
+    let r = await attempt(key, model, body, true);
+    // Réglage de réflexion refusé par ce modèle : nouvel essai sans ce réglage.
+    if (!r.timeout && !r.res.ok && r.thinking && r.res.status === 400 && /think/i.test(r.data.error?.message || '')) {
+      r = await attempt(key, model, body, false);
+    }
+    if (r.timeout) {
+      failures.push({ model, status: 504, message: 'trop long' });
+      continue;
+    }
+    const { res, data } = r;
     if (res.ok) {
       lastGood = model;
-      const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+      const text = data.candidates?.[0]?.content?.parts?.filter((p) => !p.thought).map((p) => p.text || '').join('') || '';
       return { ok: true, text, model };
     }
     failures.push({ model, status: res.status, message: data.error?.message || `Erreur ${res.status}` });
@@ -68,7 +112,10 @@ async function callGemini(key, body) {
   }
   const quota = failures.find((f) => f.status === 429);
   if (quota) return { ok: false, status: 429, message: quota.message };
-  const last = failures[failures.length - 1] || { status: 500, message: 'Aucun modèle Gemini disponible.' };
+  if (failures.length && failures.every((f) => f.status === 504)) {
+    return { ok: false, status: 504, message: 'Gemini met trop de temps à répondre en ce moment. Réessaie dans un instant.' };
+  }
+  const last = failures[failures.length - 1] || { status: 504, message: 'Gemini met trop de temps à répondre en ce moment. Réessaie dans un instant.' };
   return { ok: false, status: last.status, message: `${last.message} (modèles essayés : ${failures.map((f) => f.model).join(', ')})` };
 }
 
@@ -114,10 +161,9 @@ export default async function handler(req, res) {
   try {
     const out = await callGemini(key, body);
     if (out.ok) return res.status(200).json({ text: out.text, model: out.model });
-    const message = out.status === 429
-      ? 'Quota gratuit de Gemini atteint pour le moment. Réessaie plus tard.'
-      : `Gemini a répondu : ${out.message}`;
-    return res.status(out.status === 429 ? 429 : 502).json({ error: message });
+    if (out.status === 429) return res.status(429).json({ error: 'Quota gratuit de Gemini atteint pour le moment. Réessaie plus tard.' });
+    if (out.status === 504) return res.status(504).json({ error: out.message });
+    return res.status(502).json({ error: `Gemini a répondu : ${out.message}` });
   } catch {
     return res.status(502).json({ error: 'Impossible de joindre Gemini.' });
   }

@@ -6,8 +6,10 @@ process.env.GEMINI_API_KEY = 'cle';
 
 // Réponses simulées de Google : liste des modèles et résultat de chaque modèle.
 let behaviour = {};
+const b0 = (m) => behaviour[m] || {};
 const tried = [];
-globalThis.fetch = async (url) => {
+const bodies = [];
+globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
   if (u.includes('/models?')) {
     return new Response(JSON.stringify({ models: [
@@ -20,6 +22,9 @@ globalThis.fetch = async (url) => {
   }
   const model = u.match(/models\/([^:]+):generateContent/)[1];
   tried.push(model);
+  bodies.push({ model, body: JSON.parse(opts.body) });
+  if (b0(model).hang) return new Promise((_, rej) => opts.signal.addEventListener('abort', () => rej(Object.assign(new Error('abort'), { name: 'AbortError' }))));
+  if (b0(model).rejectThinking && JSON.parse(opts.body).generationConfig?.thinkingConfig) return new Response(JSON.stringify({ error: { message: 'thinking_level is not supported' } }), { status: 400 });
   const b = behaviour[model] || { status: 404, message: 'no longer available' };
   if (b.status === 200) return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'réponse de ' + model }] } }] }));
   return new Response(JSON.stringify({ error: { message: b.message } }), { status: b.status });
@@ -53,4 +58,13 @@ test('modèles retirés : message clair', async () => {
   assert.equal(r.code, 502);
   assert.match(r.body.error, /modèles essayés/);
   assert.ok(!tried.includes('gemini-3.5-flash-image'));
+});
+
+test('réflexion courte demandée, et nouvel essai sans ce réglage si refusé', async () => {
+  behaviour = { 'gemini-3.5-flash': { status: 200, rejectThinking: true } };
+  tried.length = 0; bodies.length = 0;
+  const r = await call();
+  assert.equal(r.code, 200);
+  assert.deepEqual(bodies[0].body.generationConfig.thinkingConfig, { thinkingLevel: 'low' });
+  assert.equal(bodies[1].body.generationConfig?.thinkingConfig, undefined);
 });

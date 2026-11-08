@@ -34,7 +34,10 @@ export async function callAssistantApi(payload) {
     throw new Error('Pas de connexion internet.');
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 504 && !data.error) throw new Error('L\'assistant a mis trop de temps à répondre. Réessaie dans un instant.');
+    throw new Error(data.error || `Erreur ${res.status}`);
+  }
   return data.text || '';
 }
 
