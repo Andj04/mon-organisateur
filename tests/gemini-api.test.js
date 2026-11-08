@@ -68,3 +68,13 @@ test('réflexion courte demandée, et nouvel essai sans ce réglage si refusé',
   assert.deepEqual(bodies[0].body.generationConfig.thinkingConfig, { thinkingLevel: 'low' });
   assert.equal(bodies[1].body.generationConfig?.thinkingConfig, undefined);
 });
+
+test('PDF : réflexion minimale d\'abord, puis courte si refusée', async () => {
+  behaviour = { 'gemini-3.5-flash': { status: 200 } };
+  tried.length = 0; bodies.length = 0;
+  let out;
+  const res = { status(c) { out = { code: c }; return this; }, json(d) { out.body = d; return this; }, setHeader() {} };
+  await handler({ method: 'POST', headers: { 'x-app-password': 'secret' }, body: { kind: 'timetable', pdf: 'QUJD', today: '2026-11-08', year: '2026/2027' } }, res);
+  assert.equal(out.code, 200);
+  assert.deepEqual(bodies[0].body.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
+});

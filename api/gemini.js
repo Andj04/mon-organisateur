@@ -1,7 +1,7 @@
 // Relais vers Gemini. La clé reste sur le serveur Vercel (variable GEMINI_API_KEY) et n'est jamais envoyée au navigateur.
 // L'accès est protégé par un mot de passe (variable APP_PASSWORD) que tu saisis une fois dans l'application.
 // Durée maximale côté Vercel (voir aussi vercel.json). L'application garde sa propre marge plus bas.
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 300 };
 
 // Modèles connus en dernier recours. Les noms changent souvent : le serveur demande donc aussi à Google
 // la liste des modèles réellement disponibles pour ta clé.
@@ -48,25 +48,28 @@ Règles :
 - Si la case précise une heure différente du créneau (ex. "9h - 10h"), utilise cette heure.
 - N'invente rien. Ignore les cases vides.`;
 
-const ATTEMPT_MS = 45000; // délai maximal pour un modèle
-const BUDGET_MS = 100000; // délai total, sous la limite Vercel
+// Délais selon la tâche. Lire un PDF d'emploi du temps est bien plus long que répondre à une question.
+const LIMITS = {
+  chat: { attemptMs: 45000, budgetMs: 100000, levels: ['low'] },
+  timetable: { attemptMs: 140000, budgetMs: 270000, levels: ['minimal', 'low'] }, // sous les 300 s de Vercel
+};
 
-// Les modèles récents « réfléchissent » longtemps par défaut : on demande une réflexion courte,
-// largement suffisante pour organiser des tâches, et bien plus rapide.
-function thinkingFor(model) {
+// Les modèles récents « réfléchissent » longtemps par défaut : on demande la réflexion la plus courte
+// utile à la tâche. Si un modèle refuse un niveau, on essaie le suivant, puis sans réglage.
+function thinkingFor(model, level) {
   const v = versionOf(model);
-  if (v >= 3) return { thinkingLevel: 'low' };
+  if (v >= 3) return level ? { thinkingLevel: level } : null;
   if (v >= 2.5 && model.includes('flash')) return { thinkingBudget: 0 };
   return null;
 }
 
-async function attempt(key, model, body, withThinking) {
-  const thinking = withThinking ? thinkingFor(model) : null;
+async function attempt(key, model, body, level, attemptMs) {
+  const thinking = thinkingFor(model, level);
   const payload = thinking
     ? { ...body, generationConfig: { ...(body.generationConfig || {}), thinkingConfig: thinking } }
     : body;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ATTEMPT_MS);
+  const timer = setTimeout(() => ctrl.abort(), attemptMs);
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
@@ -84,16 +87,25 @@ async function attempt(key, model, body, withThinking) {
   }
 }
 
-async function callGemini(key, body) {
+const SLOW_MESSAGE = {
+  chat: 'Gemini met trop de temps à répondre en ce moment. Réessaie dans un instant.',
+  timetable: 'Gemini met trop de temps à lire ce PDF en ce moment. Réessaie dans quelques minutes, ou importe l\'Excel du semestre (lu directement sur ton appareil).',
+};
+
+async function callGemini(key, body, kind = 'chat') {
+  const { attemptMs, budgetMs, levels } = LIMITS[kind] || LIMITS.chat;
   const started = Date.now();
   const failures = [];
   for (const model of await models(key)) {
-    // Plus assez de temps pour un nouvel essai : on s'arrête avant que Vercel coupe.
-    if (Date.now() - started > BUDGET_MS - 20000) break;
-    let r = await attempt(key, model, body, true);
-    // Réglage de réflexion refusé par ce modèle : nouvel essai sans ce réglage.
-    if (!r.timeout && !r.res.ok && r.thinking && r.res.status === 400 && /think/i.test(r.data.error?.message || '')) {
-      r = await attempt(key, model, body, false);
+    const left = budgetMs - (Date.now() - started);
+    // Plus assez de temps pour un essai complet : on s'arrête avant que Vercel coupe.
+    if (left < Math.min(attemptMs, 30000)) break;
+    let r;
+    for (const level of [...levels, null]) {
+      r = await attempt(key, model, body, level, Math.min(attemptMs, left));
+      // Niveau de réflexion refusé par ce modèle : on essaie le suivant.
+      const rejected = !r.timeout && !r.res.ok && r.thinking && r.res.status === 400 && /think/i.test(r.data.error?.message || '');
+      if (!rejected) break;
     }
     if (r.timeout) {
       failures.push({ model, status: 504, message: 'trop long' });
@@ -112,10 +124,10 @@ async function callGemini(key, body) {
   }
   const quota = failures.find((f) => f.status === 429);
   if (quota) return { ok: false, status: 429, message: quota.message };
-  if (failures.length && failures.every((f) => f.status === 504)) {
-    return { ok: false, status: 504, message: 'Gemini met trop de temps à répondre en ce moment. Réessaie dans un instant.' };
-  }
-  const last = failures[failures.length - 1] || { status: 504, message: 'Gemini met trop de temps à répondre en ce moment. Réessaie dans un instant.' };
+  const real = failures.filter((f) => f.status !== 504);
+  // Uniquement des lenteurs (ou rien d'essayé) : message clair.
+  if (!real.length) return { ok: false, status: 504, message: SLOW_MESSAGE[kind] || SLOW_MESSAGE.chat };
+  const last = real[real.length - 1];
   return { ok: false, status: last.status, message: `${last.message} (modèles essayés : ${failures.map((f) => f.model).join(', ')})` };
 }
 
@@ -159,7 +171,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const out = await callGemini(key, body);
+    const out = await callGemini(key, body, input.kind === 'timetable' ? 'timetable' : 'chat');
     if (out.ok) return res.status(200).json({ text: out.text, model: out.model });
     if (out.status === 429) return res.status(429).json({ error: 'Quota gratuit de Gemini atteint pour le moment. Réessaie plus tard.' });
     if (out.status === 504) return res.status(504).json({ error: out.message });

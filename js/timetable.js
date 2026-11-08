@@ -174,9 +174,9 @@ function bind(d) {
     if (t.matches('[data-tt-file]') && t.files[0]) {
       const file = t.files[0];
       const status = box.querySelector('.tt-status');
-      status.innerHTML = `<p class="loading">${icon('repeat')}Lecture de « ${esc(file.name)} »…</p>`;
+      const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+      status.innerHTML = `<p class="loading">${icon('repeat')}Lecture de « ${esc(file.name)} »…${isPdf ? ' Gemini lit le PDF : cela peut prendre 1 à 3 minutes, garde l\'application ouverte.' : ''}</p>`;
       try {
-        const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
         prepare(isPdf ? await readPdf(file) : await readExcel(file), isPdf ? 'pdf' : 'excel');
         if (!review.candidates.length) throw new Error('Aucun cours trouvé dans ce fichier.');
         rerender();
